@@ -360,8 +360,8 @@ def save(user_id, image_id):
 			# Логируем состояние картинки после сохранения
 			cur.execute("SELECT likes, dislikes, total, value FROM pictures WHERE id = %s", (image_id,))
 			stats = cur.fetchone()
-			if stats:
-				print(f"[IMAGE] save: id={image_id}, likes={stats[0]}, dislikes={stats[1]}, total={stats[2]}, value={stats[3]}")
+			# if stats:
+			# 	print(f"[IMAGE] save: id={image_id}, likes={stats[0]}, dislikes={stats[1]}, total={stats[2]}, value={stats[3]}")
 
 			conn.commit()
 			return True
@@ -413,8 +413,8 @@ def like(user_id):
 			# Логируем состояние картинки после лайка
 			cur.execute("SELECT likes, dislikes, total, value FROM pictures WHERE id = %s", (image_id,))
 			stats = cur.fetchone()
-			if stats:
-				print(f"[IMAGE] like: id={image_id}, likes={stats[0]}, dislikes={stats[1]}, total={stats[2]}, value={stats[3]}")
+			# if stats:
+			# 	print(f"[IMAGE] like: id={image_id}, likes={stats[0]}, dislikes={stats[1]}, total={stats[2]}, value={stats[3]}")
 
 			conn.commit()
 		return True
@@ -460,8 +460,8 @@ def dislike(user_id):
 			# Логируем состояние картинки после дизлайка
 			cur.execute("SELECT likes, dislikes, total, value FROM pictures WHERE id = %s", (image_id,))
 			stats = cur.fetchone()
-			if stats:
-				print(f"[IMAGE] dislike: id={image_id}, likes={stats[0]}, dislikes={stats[1]}, total={stats[2]}, value={stats[3]}")
+			# if stats:
+			# 	print(f"[IMAGE] dislike: id={image_id}, likes={stats[0]}, dislikes={stats[1]}, total={stats[2]}, value={stats[3]}")
 
 			conn.commit()
 		return True
@@ -530,7 +530,7 @@ def get_image(user_id):
 				user_set_cycle(user_id, user['cycle'])
 
 				# Логируем выдачу картинки
-				print(f"[IMAGE] выдана: id={img['id']}, likes={img['likes']}, dislikes={img['dislikes']}, total={img['total']}, value={img['value']}")
+				# print(f"[IMAGE] выдана: id={img['id']}, likes={img['likes']}, dislikes={img['dislikes']}, total={img['total']}, value={img['value']}")
 				return full_path, img
 
 	print(f"User {user_id} has no available images with existing files")
