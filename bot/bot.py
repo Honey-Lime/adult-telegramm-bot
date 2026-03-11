@@ -1,3 +1,4 @@
+# bot.py
 """
 Telegram Bot для оценки и сохранения изображений (аниме/реальные фото).
 ООП-версия с инкапсуляцией состояний и обработчиков.
@@ -194,6 +195,7 @@ class BotController:
 
 		await self.send_menu(chat_id)
 
+
 	async def cmd_app(self, message: Message) -> None:
 		chat_id = message.chat.id
 		# URL вашего мини-приложения (замените на реальный домен с HTTPS)
@@ -202,6 +204,7 @@ class BotController:
 			[InlineKeyboardButton(text="Открыть мини-приложение", web_app=WebAppInfo(url=app_url))]
 		])
 		await message.answer("Нажмите кнопку, чтобы открыть мини-приложение:", reply_markup=keyboard)
+
 
 	async def cmd_admin(self, message: Message) -> None:
 		chat_id = message.chat.id
