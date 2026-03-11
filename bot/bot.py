@@ -154,13 +154,16 @@ class BotController:
 
 	async def cmd_start(self, message: Message) -> None:
 		chat_id = message.chat.id
-		args = message.get_args()
 		referrer_id = None
-		if args and args.isdigit():
-			referrer_id = int(args)
-			# Нельзя пригласить самого себя
-			if referrer_id == chat_id:
-				referrer_id = None
+
+		# Ручной разбор аргументов команды (для совместимости)
+		if message.text and ' ' in message.text:
+			parts = message.text.split(maxsplit=1)
+			if len(parts) == 2 and parts[1].isdigit():
+				referrer_id = int(parts[1])
+				# Нельзя пригласить самого себя
+				if referrer_id == chat_id:
+					referrer_id = None
 
 		# Получаем пользователя (с возможным реферером)
 		user = database.get_user(chat_id, referrer_id)
