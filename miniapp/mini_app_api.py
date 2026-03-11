@@ -28,22 +28,26 @@ def get_db_connection():
 	)
 
 @app.get("/api/top")
-async def get_top():
-	conn = get_db_connection()
-	try:
-		with conn.cursor() as cur:
-			cur.execute("""
-				SELECT id, path, likes, dislikes, value, type
-				FROM pictures
-				ORDER BY value DESC
-				LIMIT 100
-			""")
-			images = cur.fetchall()
-			return images
-	except Exception as e:
-		raise HTTPException(status_code=500, detail=str(e))
-	finally:
-		conn.close()
+async def get_top(type: int):
+    """
+    Возвращает топ-25 изображений указанного типа (0 - аниме, 1 - реальные).
+    """
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT id, path, likes, dislikes, value, type
+                FROM pictures
+                WHERE type = %s
+                ORDER BY value DESC
+                LIMIT 25
+            """, (type,))
+            images = cur.fetchall()
+            return images
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
 
 @app.get("/api/saved")
 async def get_saved(user_id: int):
