@@ -115,7 +115,7 @@ class BotController:
 
 	async def edit_message_to_save_button(self, chat_id: int, message_id: int, image_id: int) -> None:
 		keyboard = InlineKeyboardMarkup(inline_keyboard=[
-			[InlineKeyboardButton(text="Сохранить 5🪙", callback_data=f"save_{image_id}")]
+			[InlineKeyboardButton(text="Сохранить 25🪙", callback_data=f"save_{image_id}")]
 		])
 		try:
 			await self.bot.edit_message_reply_markup(
@@ -271,24 +271,21 @@ class BotController:
 					await self.delete_current(chat_id, message_id)
 					return
 
-				# Только сохранение (без лайка)
 				success = database.save(chat_id, image_id)
 
 				if success:
 					await self.remove_keyboard(chat_id, message_id)
 					await self.send_and_track(
 						chat_id,
-						text="✅ Изображение сохранено! 🪙-5",
+						text="✅ Изображение сохранено! 🪙-25",
 						track=False,
 					)
 				else:
-					# Недостаточно монет – клавиатура остаётся
 					await self.send_and_track(
 						chat_id,
 						text="❌ Недостаточно монет",
 						track=False,
 					)
-				# Новая картинка не отправляется
 
 
 			# --- Сохранение текущей картинки ---
@@ -302,32 +299,26 @@ class BotController:
 					await self.send_picture(chat_id)
 					return
 
-				# Проверяем, хватает ли монет для сохранения (нужно 5)
-				if user.get('coins', 0) < 5:
+				if user.get('coins', 0) < 25:
 					await self.send_and_track(
 						chat_id,
 						text="❌ Недостаточно монет",
 						track=False,
 					)
-					# Не удаляем картинку, не убираем клавиатуру
 					return
 
-				# Сначала лайк (даёт монету +1)
-				database.like(chat_id)  # +1 like, total, value, +1 монета
-
-				# Затем сохранение (списывает 5 монет, добавляет в saved, +1 value)
+				database.like(chat_id)
 				success = database.save(chat_id, image_id)
 
 				if success:
 					await self.remove_keyboard(chat_id, message_id)
 					await self.send_and_track(
 						chat_id,
-						text="✅ Изображение сохранено! 🪙-5",
+						text="✅ Изображение сохранено! 🪙-25",
 						track=False,
 					)
-					await self.send_picture(chat_id)  # отправляем новую картинку
+					await self.send_picture(chat_id)
 				else:
-					# Если сохранение не удалось (например, ошибка БД) – уведомление, клавиатура остаётся
 					await self.send_and_track(
 						chat_id,
 						text="❌ Ошибка при сохранении",
@@ -494,7 +485,7 @@ class BotController:
 				InlineKeyboardButton(text="❤️", callback_data="like"),
 				InlineKeyboardButton(text="⚠️ Не тот тип\Жалоба", callback_data="report"),
 				# InlineKeyboardButton(text="Menu", callback_data="menu"),
-				InlineKeyboardButton(text="Сохранить 5🪙", callback_data="save")
+				InlineKeyboardButton(text="Сохранить 25🪙", callback_data="save")
 			]
 			keyboard_rows = [buttons[:2], buttons[2:]]
 			keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_rows)

@@ -355,8 +355,8 @@ def add_saved_image(user_id, image_id):
 			cur.execute("""
 				UPDATE users
 				SET saved_images = array_append(coalesce(saved_images, ARRAY[]::integer[]), %s),
-					coins = coins - 5
-				WHERE id = %s AND coins >= 5
+					coins = coins - 25
+				WHERE id = %s AND coins >= 25
 				RETURNING coins
 			""", (image_id, user_id))
 			if cur.rowcount == 0:
@@ -372,7 +372,7 @@ def add_saved_image(user_id, image_id):
 
 def save(user_id, image_id):
 	"""
-	Сохраняет изображение: добавляет в saved_images, списывает 5 монет,
+	Сохраняет изображение: добавляет в saved_images, списывает 25 монет,
 	добавляет в просмотренные (viewed_*) и увеличивает value на 1.
 	Возвращает True при успехе, False при недостатке монет или ошибке.
 	"""
@@ -391,13 +391,13 @@ def save(user_id, image_id):
 			cur.execute(f"""
 				UPDATE users
 				SET saved_images = array_append(coalesce(saved_images, ARRAY[]::integer[]), %s),
-					coins = coins - 5,
+					coins = coins - 25,
 					{viewed_field} = CASE
 						WHEN NOT (%s = ANY(coalesce({viewed_field}, ARRAY[]::integer[])))
 						THEN array_append(coalesce({viewed_field}, ARRAY[]::integer[]), %s)
 						ELSE {viewed_field}
 					END
-				WHERE id = %s AND coins >= 5
+				WHERE id = %s AND coins >= 25
 				RETURNING coins
 			""", (image_id, image_id, image_id, user_id))
 			if cur.rowcount == 0:
@@ -408,12 +408,6 @@ def save(user_id, image_id):
 				SET value = value + 1
 				WHERE id = %s
 			""", (image_id,))
-
-			# Логируем состояние картинки после сохранения
-			cur.execute("SELECT likes, dislikes, total, value FROM pictures WHERE id = %s", (image_id,))
-			stats = cur.fetchone()
-			# if stats:
-			# 	print(f"[IMAGE] save: id={image_id}, likes={stats[0]}, dislikes={stats[1]}, total={stats[2]}, value={stats[3]}")
 
 			conn.commit()
 			return True
