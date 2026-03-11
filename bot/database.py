@@ -164,7 +164,8 @@ def get_user(user_id, referrer_id=None):
 
 def get_or_create_user(user_id, referrer_id=None):
 	"""
-	Получает пользователя по id. Если не существует – создаёт и начисляет бонус рефереру.
+	Получает пользователя по id. Если не существует – создаёт.
+	Если передан referrer_id и реферер существует, начисляет ему 250 монет.
 	Возвращает кортеж (user_dict, created), где created=True если пользователь только что создан.
 	"""
 	conn = get_connection()
@@ -180,32 +181,37 @@ def get_or_create_user(user_id, referrer_id=None):
 				print(f"[DEBUG] User {user_id} already exists")
 				return dict(zip(columns, row)), False
 
-			# Пользователь не найден – вставляем
+			# Проверяем существование реферера
+			valid_referrer = False
 			if referrer_id is not None:
+				cur.execute("SELECT id FROM users WHERE id = %s", (referrer_id,))
+				if cur.fetchone():
+					valid_referrer = True
+				else:
+					print(f"[WARNING] Referrer {referrer_id} not found, will create user without bonus")
+
+			# Вставляем пользователя (с referrer_id, если он валиден)
+			if valid_referrer:
 				cur.execute("""
 					INSERT INTO users (id, referrer_id, coins)
 					VALUES (%s, %s, 0)
-					ON CONFLICT (id) DO NOTHING
 					RETURNING id
 				""", (user_id, referrer_id))
 			else:
 				cur.execute("""
 					INSERT INTO users (id, coins)
 					VALUES (%s, 0)
-					ON CONFLICT (id) DO NOTHING
 					RETURNING id
 				""", (user_id,))
 
 			inserted = cur.fetchone()
 			if inserted:
 				print(f"[DEBUG] New user inserted: {user_id}")
-				if referrer_id is not None:
-					# Начисляем монеты рефереру в той же транзакции
+				if valid_referrer:
+					# Начисляем монеты рефереру
 					cur.execute("UPDATE users SET coins = coins + 250 WHERE id = %s", (referrer_id,))
 					if cur.rowcount == 0:
-						print(f"[ERROR] Referrer {referrer_id} not found, cannot award coins")
-						conn.rollback()
-						return None, False
+						print(f"[ERROR] Failed to award coins to referrer {referrer_id} (should not happen)")
 					else:
 						print(f"[INFO] Referrer {referrer_id} awarded 250 coins for new user {user_id}")
 				conn.commit()
