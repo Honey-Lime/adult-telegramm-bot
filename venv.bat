@@ -1,3 +1,2 @@
 @echo off
-call venv\Scripts\activate
-pause
+start venv\Scripts\activate
