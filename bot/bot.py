@@ -158,18 +158,28 @@ class BotController:
 		chat_id = message.chat.id
 		referrer_id = None
 
-		# Ручной разбор аргументов команды (для совместимости)
+		# Ручной разбор аргументов команды
 		if message.text and ' ' in message.text:
 			parts = message.text.split(maxsplit=1)
 			if len(parts) == 2 and parts[1].isdigit():
 				referrer_id = int(parts[1])
-				# Нельзя пригласить самого себя
 				if referrer_id == chat_id:
 					referrer_id = None
 
-		# Получаем пользователя (с возможным реферером)
-		user = database.get_user(chat_id, referrer_id)
+		# Получаем пользователя и флаг создания
+		user, created = database.get_or_create_user(chat_id, referrer_id)
 		print(user)  # для отладки
+
+		# Если пользователь только что создан – уведомляем админов
+		if created:
+			for admin_id in self.admin_ids:
+				try:
+					await self.bot.send_message(
+						admin_id,
+						f"🆕 Новый пользователь: {chat_id}"
+					)
+				except Exception as e:
+					print(f"Не удалось отправить уведомление админу {admin_id}: {e}")
 
 		# Удаляем последнюю картинку, если она есть
 		if chat_id in self.last_image_message_id:
@@ -513,6 +523,17 @@ class BotController:
 		await self.set_bot_commands()
 		bot_info = await self.bot.me()
 		self.bot_username = bot_info.username
+
+		# Уведомление о запуске
+		for admin_id in self.admin_ids:
+			try:
+				await self.bot.send_message(
+					admin_id,
+					f"✅ Бот {self.bot_username} запущен и готов к работе!"
+				)
+			except Exception as e:
+				print(f"Не удалось отправить уведомление админу {admin_id}: {e}")
+
 		self.dp.include_router(self.router)
 		await self.dp.start_polling(self.bot)
 

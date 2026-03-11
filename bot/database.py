@@ -346,6 +346,62 @@ def set_need_moderate(image_id):
 	finally:
 		return_connection(conn)
 
+def get_or_create_user(user_id, referrer_id=None):
+	"""
+	Аналогично get_user, но возвращает кортеж (user_dict, created)
+	где created=True если пользователь только что создан.
+	"""
+	conn = get_connection()
+	if not conn:
+		return None, False
+	try:
+		with conn.cursor() as cur:
+			# Пытаемся найти пользователя
+			cur.execute("SELECT * FROM users WHERE id = %s", (user_id,))
+			row = cur.fetchone()
+			if row:
+				columns = [desc[0] for desc in cur.description]
+				return dict(zip(columns, row)), False
+
+			created = False
+			# Пользователь не найден – вставляем с рефералом или без
+			if referrer_id is not None:
+				cur.execute("""
+					INSERT INTO users (id, referrer_id)
+					VALUES (%s, %s)
+					ON CONFLICT (id) DO NOTHING
+					RETURNING id
+				""", (user_id, referrer_id))
+			else:
+				cur.execute("""
+					INSERT INTO users (id)
+					VALUES (%s)
+					ON CONFLICT (id) DO NOTHING
+					RETURNING id
+				""", (user_id,))
+
+			inserted = cur.fetchone()
+			if inserted:
+				created = True
+				if referrer_id is not None:
+					add_coins(referrer_id, 250)
+
+			# Получаем данные пользователя (теперь он точно есть)
+			cur.execute("SELECT * FROM users WHERE id = %s", (user_id,))
+			row = cur.fetchone()
+			if row:
+				columns = [desc[0] for desc in cur.description]
+				return dict(zip(columns, row)), created
+			else:
+				return None, False
+	except Exception as e:
+		print(f"Error in get_or_create_user {user_id}: {e}")
+		conn.rollback()
+		return None, False
+	finally:
+		return_connection(conn)
+
+
 def add_saved_image(user_id, image_id):
 	conn = get_connection()
 	if not conn:
