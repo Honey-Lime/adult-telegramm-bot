@@ -183,7 +183,7 @@ def get_good_images(type):
 		return []
 	try:
 		with conn.cursor() as cur:
-			cur.execute(f"SELECT * FROM pictures WHERE type = {type} and need_moderate = false ORDER BY value DESC OFFSET 100")
+			cur.execute(f"SELECT * FROM pictures WHERE type = {type} and need_moderate = false ORDER BY value DESC OFFSET 25")
 			columns = [desc[0] for desc in cur.description]
 			rows = cur.fetchall()
 			result = [dict(zip(columns, row)) for row in rows]

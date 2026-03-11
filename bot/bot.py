@@ -380,11 +380,19 @@ class BotController:
 	# ==================== МЕТОДЫ ОТПРАВКИ СООБЩЕНИЙ ====================
 
 	async def send_menu(self, chat_id: int) -> None:
-		keyboard = InlineKeyboardMarkup(inline_keyboard=[
-			[InlineKeyboardButton(text="Anime", callback_data="anime"),
-			 InlineKeyboardButton(text="Real", callback_data="real")]
-		])
-		await self.send_and_track(chat_id, text="Выбери стиль картинок", reply_markup=keyboard)
+		"""Отправляет меню выбора типа контента и кнопку для открытия мини-приложения."""
+		# Кнопки первой строки (выбор типа)
+		buttons_row1 = [
+			InlineKeyboardButton(text="Anime", callback_data="anime"),
+			InlineKeyboardButton(text="Real", callback_data="real")
+		]
+		# Кнопка для мини-приложения (вторая строка)
+		mini_app_button = InlineKeyboardButton(
+			text="ТОП 50 / Сохраненные",
+			web_app=WebAppInfo(url=f"https://hotpicturesbot.ru/app?user_id={chat_id}")
+		)
+		keyboard = InlineKeyboardMarkup(inline_keyboard=[buttons_row1, [mini_app_button]])
+		await self.send_and_track(chat_id, text="Выбери стиль картинок или открой галерею:", reply_markup=keyboard)
 
 
 	async def send_picture(self, chat_id: int) -> None:
