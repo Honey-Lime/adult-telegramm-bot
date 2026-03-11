@@ -70,14 +70,15 @@
             cursor: pointer;
             transition: transform 0.2s;
         }
-        .card:hover {
-            transform: scale(1.02);
+        .card:hover img {
+            transform: scale(1.05);
         }
         .card img {
             width: 95%;
             height: 300px;
             object-fit: cover;
             display: block;
+            transition: transform 0.2s ease-in-out;
         }
         .card .info {
             padding: 12px;
