@@ -44,6 +44,10 @@ class BotController:
 		self.last_image_message_id: Dict[int, int] = {}		  # chat_id -> message_id последней картинки
 		self.user_processing: Dict[int, bool] = {}			   # chat_id -> флаг обработки (защита от повторных нажатий)
 
+		# +++ Защита от спама +++
+		self.last_picture_time: Dict[int, float] = {}			# chat_id -> время последней отправки картинки (для rate limit)
+		self.sending_picture: Dict[int, bool] = {}			   # chat_id -> флаг, выполняется ли сейчас отправка картинки
+
 		self._register_handlers()
 
 
@@ -384,40 +388,64 @@ class BotController:
 
 
 	async def send_picture(self, chat_id: int) -> None:
-		result = database.get_image(chat_id)
-		if result is None or result[0] is None:
-			await self.send_and_track(chat_id, text="Нет доступных изображений")
+		# +++ Защита от одновременной отправки +++
+		if self.sending_picture.get(chat_id, False):
+			logging.warning(f"Send picture already in progress for {chat_id}")
 			return
+		self.sending_picture[chat_id] = True
 
-		image_path, image_data = result
-		self.last_image_path[chat_id] = image_path
-		self.last_image_data[chat_id] = image_data
+		try:
+			# +++ Rate limit: не чаще 1 раза в секунду +++
+			now = asyncio.get_event_loop().time()
+			last_time = self.last_picture_time.get(chat_id, 0)
+			if now - last_time < 1.0:
+				await self.send_and_track(
+					chat_id,
+					text="⏳ Слишком часто, подождите секунду",
+					track=False  # не сохраняем в историю, чтобы не забивать
+				)
+				return
 
-		user = database.get_user(chat_id)
-		coins = user.get('coins', 0) if user else 0
+			result = database.get_image(chat_id)
+			if result is None or result[0] is None:
+				await self.send_and_track(chat_id, text="Нет доступных изображений")
+				return
 
-		current_type = "Аниме" if image_data['type'] == 0 else "Фото"
-		caption_text = f"{current_type} | {coins}🪙"
+			image_path, image_data = result
+			self.last_image_path[chat_id] = image_path
+			self.last_image_data[chat_id] = image_data
 
-		buttons = [
-			InlineKeyboardButton(text="😐", callback_data="dislike"),
-			InlineKeyboardButton(text="❤️", callback_data="like"),
-			InlineKeyboardButton(text="⚠️ Не тот тип\Жалоба", callback_data="report"),
-			# InlineKeyboardButton(text="Menu", callback_data="menu"),
-			InlineKeyboardButton(text="Сохранить 5🪙", callback_data="save")
-		]
-		keyboard_rows = [buttons[:2], buttons[2:]]
-		keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_rows)
+			user = database.get_user(chat_id)
+			coins = user.get('coins', 0) if user else 0
 
-		image = FSInputFile(image_path)
-		sent = await self.send_and_track(
-			chat_id,
-			photo=image,
-			text=caption_text,
-			reply_markup=keyboard,
-		)
+			current_type = "Аниме" if image_data['type'] == 0 else "Фото"
+			caption_text = f"{current_type} | {coins}🪙"
 
-		self.last_image_message_id[chat_id] = sent.message_id
+			buttons = [
+				InlineKeyboardButton(text="😐", callback_data="dislike"),
+				InlineKeyboardButton(text="❤️", callback_data="like"),
+				InlineKeyboardButton(text="⚠️ Не тот тип\Жалоба", callback_data="report"),
+				# InlineKeyboardButton(text="Menu", callback_data="menu"),
+				InlineKeyboardButton(text="Сохранить 5🪙", callback_data="save")
+			]
+			keyboard_rows = [buttons[:2], buttons[2:]]
+			keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_rows)
+
+			image = FSInputFile(image_path)
+			sent = await self.send_and_track(
+				chat_id,
+				photo=image,
+				text=caption_text,
+				reply_markup=keyboard,
+			)
+
+			self.last_image_message_id[chat_id] = sent.message_id
+
+			# +++ Обновляем время последней успешной отправки картинки +++
+			self.last_picture_time[chat_id] = now
+
+		finally:
+			self.sending_picture[chat_id] = False
 
 
 	# ==================== ЗАПУСК БОТА ====================
