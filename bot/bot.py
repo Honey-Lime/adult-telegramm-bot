@@ -385,7 +385,7 @@ class BotController:
 			elif callback.data == "report_cancel":
 				await self.delete_current(chat_id, message_id)
 				await self.send_picture(chat_id)
-				
+
 			elif callback.data == "referral":
 				if not self.bot_username:
 					# Если по какой-то причине username не получен, получим сейчас
