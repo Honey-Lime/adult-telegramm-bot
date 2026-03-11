@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Image Gallery</title>
     <style>
+        /* (стили остаются без изменений) */
         body {
             margin: 0;
             padding: 16px;
@@ -37,6 +38,11 @@
             border-radius: 12px;
             overflow: hidden;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .card:hover {
+            transform: scale(1.02);
         }
         .card img {
             width: 100%;
@@ -69,7 +75,6 @@
             background-color: rgba(0,0,0,0.9);
             overflow: auto;
         }
-
         .modal-content {
             margin: auto;
             display: block;
@@ -78,7 +83,6 @@
             object-fit: contain;
             margin-top: 5%;
         }
-
         #caption {
             margin: auto;
             display: block;
@@ -88,7 +92,6 @@
             color: #ccc;
             padding: 10px 0;
         }
-
         .close {
             position: absolute;
             top: 15px;
@@ -99,19 +102,11 @@
             cursor: pointer;
             transition: 0.3s;
         }
-
         .close:hover,
         .close:focus {
             color: #bbb;
             text-decoration: none;
             cursor: pointer;
-        }
-        .card {
-            cursor: pointer;
-            transition: transform 0.2s;
-        }
-        .card:hover {
-            transform: scale(1.02);
         }
     </style>
 </head>
@@ -127,9 +122,6 @@
 
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script>
-
-        // savedBtn уже есть, его оставляем
-
         const tg = window.Telegram.WebApp;
         tg.expand();
 
@@ -137,18 +129,9 @@
         const userId = urlParams.get('user_id');
 
         const gallery = document.getElementById('gallery');
-        const topBtn = document.getElementById('topBtn');
-        const savedBtn = document.getElementById('savedBtn');
         const topAnimeBtn = document.getElementById('topAnimeBtn');
         const topRealBtn = document.getElementById('topRealBtn');
-
-        topAnimeBtn.addEventListener('click', () => {
-            loadImages('/api/top?type=0');
-        });
-
-        topRealBtn.addEventListener('click', () => {
-            loadImages('/api/top?type=1');
-        });
+        const savedBtn = document.getElementById('savedBtn');
 
         async function loadImages(endpoint) {
             gallery.innerHTML = '<div class="loading">Загрузка...</div>';
@@ -172,7 +155,7 @@
                 const folder = img.type === 0 ? 'anime' : 'real';
                 const imageUrl = `/images/${folder}/${img.path}`;
                 return `
-                    <div class="card" onclick="openModal('${imageUrl}', '${typeText}')" style="cursor: pointer;">
+                    <div class="card" onclick="openModal('${imageUrl}', '${typeText}')">
                         <img src="${imageUrl}" alt="Image ${img.id}" loading="lazy">
                         <div class="info">
                             <div>❤️ ${img.likes} | 💔 ${img.dislikes}</div>
@@ -185,8 +168,12 @@
             gallery.innerHTML = html;
         }
 
-        topBtn.addEventListener('click', () => {
-            loadImages('/api/top');
+        topAnimeBtn.addEventListener('click', () => {
+            loadImages('/api/top?type=0');
+        });
+
+        topRealBtn.addEventListener('click', () => {
+            loadImages('/api/top?type=1');
         });
 
         savedBtn.addEventListener('click', () => {
@@ -197,10 +184,10 @@
             loadImages(`/api/saved?user_id=${userId}`);
         });
 
-        // Загружаем топ по умолчанию
-        loadImages('/api/top');
+        // Загружаем топ аниме по умолчанию
+        loadImages('/api/top?type=0');
 
-        // Функция открытия модального окна
+        // Функции модального окна
         function openModal(imageSrc, altText) {
             const modal = document.getElementById('imageModal');
             const modalImg = document.getElementById('modalImage');
@@ -211,18 +198,17 @@
             captionText.innerHTML = altText;
         }
 
-        // Функция закрытия модального окна
         function closeModal() {
             document.getElementById('imageModal').style.display = 'none';
         }
 
-        // Закрытие по нажатию ESC
         document.addEventListener('keydown', function(event) {
             if (event.key === 'Escape') {
                 closeModal();
             }
         });
     </script>
+
     <!-- Модальное окно для полноразмерного изображения -->
     <div id="imageModal" class="modal" onclick="closeModal()">
         <span class="close">&times;</span>
