@@ -10,9 +10,9 @@ from enum import Enum
 
 
 class ImageType(Enum):
-    """Типы изображений."""
-    ANIME = 0
-    REAL = 1
+  """Типы изображений."""
+  ANIME = 0
+  REAL = 1
 
 
 # Базовая директория проекта (там, где лежит database.py)
@@ -170,7 +170,7 @@ def count_messages(chat_id):
 			cur.execute("SELECT COUNT(*) FROM message_history WHERE chat_id = %s", (chat_id,))
 			return cur.fetchone()[0]
 	except Exception as e:
-		logging.error(f"Error : {e}")
+		logging.error(f"Error in count_messages: {e}, chat_id={chat_id}")
 		return 0
 	finally:
 		return_connection(conn)
@@ -209,7 +209,7 @@ def load_all_message_history():
 				history.setdefault(chat_id, []).append(msg_id)
 			return history
 	except Exception as e:
-		logging.error(f"Error : {e}")
+		logging.error(f"Error in load_all_message_history: {e}")
 		return {}
 	finally:
 		return_connection(conn)
@@ -312,7 +312,7 @@ def get_user(user_id, referrer_id=None):
 			else:
 				return None
 	except Exception as e:
-		logging.error(f"Error : {e}")
+		logging.error(f"Error in get_user: {e}, user_id={user_id}, referrer_id={referrer_id}")
 		conn.rollback()
 		return None
 	finally:
@@ -415,7 +415,7 @@ def user_set_type(user_id, type):
 			conn.commit()
 		return True
 	except Exception as e:
-		logging.error(f"Error : {e}")
+		logging.error(f"Error in user_set_type: {e}, user_id={user_id}, type={type}")
 		conn.rollback()
 		return False
 	finally:
@@ -440,7 +440,7 @@ def user_set_cycle(user_id, cycle):
 			conn.commit()
 		return True
 	except Exception as e:
-		logging.error(f"Error : {e}")
+		logging.error(f"Error in delete_message_record: {e}, chat_id={chat_id}, message_id={message_id}")
 		conn.rollback()
 		return False
 	finally:
@@ -470,7 +470,7 @@ def user_watched_image(user_id, image):
 			conn.commit()
 		return True
 	except Exception as e:
-		logging.error(f"Error : {e}")
+		logging.error(f"Error in add_message_record: {e}, chat_id={chat_id}, message_id={message_id}")
 		conn.rollback()
 		return False
 	finally:
@@ -490,7 +490,7 @@ def get_images_for_moderation():
             result = [dict(zip(columns, row)) for row in rows]
             return result
     except Exception as e:
-        logging.error(f"Error : {e}")
+        logging.error(f"Error in get_images_for_moderation: {e}")
         return []
     finally:
         return_connection(conn)
@@ -505,9 +505,9 @@ def delete_image(image_id):
             conn.commit()
             return True
     except Exception as e:
-        logging.error(f"Error : {e}")
-        conn.rollback()
-        return False
+    	logging.error(f"Error in add_post_record: {e}, pic_type={pic_type}, date={date}")
+    	conn.rollback()
+    	return False
     finally:
         return_connection(conn)
 
@@ -522,9 +522,9 @@ def clear_moderation(image_id):
             conn.commit()
             return True
     except Exception as e:
-        logging.error(f"Error : {e}")
-        conn.rollback()
-        return False
+    	logging.error(f"Error in add_picture_record: {e}, pic_type={pic_type}, post_id={post_id}, filename={filename}")
+    	conn.rollback()
+    	return False
     finally:
         return_connection(conn)
 
@@ -541,7 +541,7 @@ def get_good_images(type):
 			result = [dict(zip(columns, row)) for row in rows]
 			return result
 	except Exception as e:
-		logging.error(f"Error : {e}")
+		logging.error(f"Error in get_good_images: {e}, type={type}")
 		return []
 	finally:
 		return_connection(conn)
@@ -559,7 +559,7 @@ def get_noname_images(type):
 			result = [dict(zip(columns, row)) for row in rows]
 			return result
 	except Exception as e:
-		logging.error(f"Error : {e}")
+		logging.error(f"Error in get_noname_images: {e}, type={type}")
 		return []
 	finally:
 		return_connection(conn)
@@ -576,7 +576,7 @@ def get_not_real_type(image_id):
 			row = cur.fetchone()
 			return row[0] if row else None
 	except Exception as e:
-		logging.error(f"Error : {e}")
+		logging.error(f"Error in get_oldest_message: {e}, chat_id={chat_id}")
 		return None
 	finally:
 		return_connection(conn)
@@ -593,7 +593,7 @@ def set_not_real_type(image_id, value):
 			conn.commit()
 			return True
 	except Exception as e:
-		logging.error(f"Error : {e}")
+		logging.error(f"Error in user_set_cycle: {e}, user_id={user_id}, cycle={cycle}")
 		conn.rollback()
 		return False
 	finally:
@@ -656,7 +656,7 @@ def set_need_moderate(image_id):
 			conn.commit()
 		return True
 	except Exception as e:
-		logging.error(f"Error : {e}")
+		logging.error(f"Error in user_watched_image: {e}, user_id={user_id}, image_id={image['id'] if image else None}")
 		conn.rollback()
 		return False
 	finally:
@@ -681,9 +681,9 @@ def add_saved_image(user_id, image_id):
 			conn.commit()
 			return True
 	except Exception as e:
-		logging.error(f"Error : {e}")
-		conn.rollback()
-		return False
+	    logging.error(f"Error in delete_image: {e}, image_id={image_id}")
+	    conn.rollback()
+	    return False
 	finally:
 		return_connection(conn)
 
@@ -731,9 +731,9 @@ def save(user_id, image_id):
 			conn.commit()
 			return True
 	except Exception as e:
-		logging.error(f"Error : {e}")
-		conn.rollback()
-		return False
+	    logging.error(f"Error in clear_moderation: {e}, image_id={image_id}")
+	    conn.rollback()
+	    return False
 	finally:
 		return_connection(conn)
 
@@ -975,6 +975,7 @@ def get_image(user_id):
             for cand in candidates:
                 img = dict(zip(cand_columns, cand))
                 full_path = os.path.join(base_path, img['path'])
+                logging.warning(f"DEBUG {full_path}")
                 if os.path.isfile(full_path):
                     # Нашли подходящее изображение
                     # Обновляем last_watched и cycle в одной транзакции

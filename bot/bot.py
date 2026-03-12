@@ -25,15 +25,10 @@ from aiogram.types import (
 from config_reader import config
 import database
 import keyboards
+from logging_config import setup_logging
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[
-        logging.StreamHandler(sys.stdout),
-        logging.FileHandler("bot.log", encoding="utf-8")
-    ]
-)
+# Настройка логирования
+setup_logging(detailed=True)
 
 
 class BotController:
@@ -102,7 +97,7 @@ class BotController:
 					try:
 						await self.bot.delete_message(chat_id, oldest_id)
 					except Exception as e:
-						print(f"Не удалось удалить самое старое сообщение {oldest_id}: {e}")
+						logging.warning(f"Не удалось удалить самое старое сообщение {oldest_id}: {e}")
 					# В любом случае удаляем запись из БД
 					database.delete_message_record(chat_id, oldest_id)
 					# Также удаляем из in-memory списка
@@ -234,7 +229,7 @@ class BotController:
 			await message.answer("❌ Произошла ошибка при регистрации. Попробуйте позже.")
 			return
 
-		print(user)  # для отладки
+		logging.debug(f"User object: {user}")  # для отладки
 
 		# Если пользователь только что создан – уведомляем админов
 		if created:
@@ -245,8 +240,8 @@ class BotController:
 						f"🆕 Новый пользователь: {chat_id}"
 					)
 				except Exception as e:
-					print(f"Не удалось отправить уведомление админу {admin_id}: {e}")
-			print(f"Новый пользователь зарегистрирован: {chat_id}, реферер: {referrer_id}")
+					logging.error(f"Не удалось отправить уведомление админу {admin_id}: {e}")
+			logging.info(f"Новый пользователь зарегистрирован: {chat_id}, реферер: {referrer_id}")
 
 		# Удаляем последнюю картинку, если она есть
 		if chat_id in self.last_image_message_id:
@@ -587,8 +582,8 @@ class BotController:
 				await self.delete_current(chat_id, message_id)
 				await self.send_and_track(chat_id, text=text, track=False)
 
-				# Возвращаем админ-меню
-				keyboard = keyboards.get_admin_users_keyboard()
+				# Возвращаем админ-меню (идентичное меню вызова /admin)
+				keyboard = keyboards.get_admin_panel_keyboard()
 				await self.send_and_track(chat_id, text="Админ-панель. Выберите действие:", reply_markup=keyboard, track=False)
 
 
@@ -672,7 +667,7 @@ class BotController:
 					f"✅ Бот {self.bot_username} запущен и готов к работе!"
 				)
 			except Exception as e:
-				print(f"Не удалось отправить уведомление админу {admin_id}: {e}")
+				logging.error(f"Не удалось отправить уведомление админу {admin_id}: {e}")
 
 		self.dp.include_router(self.router)
 		await self.dp.start_polling(self.bot)

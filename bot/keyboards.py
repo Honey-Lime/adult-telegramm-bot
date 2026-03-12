@@ -79,10 +79,3 @@ def get_web_app_keyboard(chat_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Открыть мини-приложение", web_app=WebAppInfo(url=app_url))]
     ])
-def get_admin_users_keyboard() -> InlineKeyboardMarkup:
-    """
-    Клавиатура с одной кнопкой "👥 Пользователи" для возврата в админ-панель.
-    """
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="👥 Пользователи", callback_data="admin_users")]
-    ])

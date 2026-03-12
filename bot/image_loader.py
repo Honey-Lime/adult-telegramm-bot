@@ -1,8 +1,11 @@
 import os
 import argparse
+import logging
 from pathlib import Path
 from collections import defaultdict
 import database
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.webp'}
 
@@ -26,7 +29,7 @@ def collect_images_from_folder(folder_path):
 	images_by_date = defaultdict(list)
 	base = Path(folder_path)
 	if not base.is_dir():
-		print(f"Предупреждение: {folder_path} не существует, пропускаем.")
+		logging.warning(f"Предупреждение: {folder_path} не существует, пропускаем.")
 		return images_by_date
 
 	for file_path in base.rglob('*'):
@@ -35,7 +38,7 @@ def collect_images_from_folder(folder_path):
 			if date:
 				images_by_date[date].append(file_path.name)
 			else:
-				print(f"Предупреждение: не удалось извлечь дату из {file_path.name}, пропускаем.")
+				logging.warning(f"Предупреждение: не удалось извлечь дату из {file_path.name}, пропускаем.")
 	return images_by_date
 
 def merge_dicts(dict_list):
@@ -51,12 +54,12 @@ def load_to_database(data):
 	"""грузит массив изображений в базу данных"""
 	for d in data:
 		type = database.ImageType.ANIME.value if d == 'anime' else database.ImageType.REAL.value
-		print(d)
+		logging.info(f"Загрузка типа: {d}")
 		for date in data[d]:
-			print(date)
+			logging.info(f"  Дата: {date}")
 			post_id = database.add_post_record(type, date)
 			for picture in data[d][date]:
-				print(picture)
+				logging.debug(f"    Картинка: {picture}")
 				database.add_picture_record(type, post_id, picture)
 
 
@@ -71,7 +74,7 @@ def main():
 	args = parser.parse_args()
 
 	if not args.anime and not args.real:
-		print("Ошибка: укажите хотя бы одну папку через --anime или --real")
+		logging.error("Ошибка: укажите хотя бы одну папку через --anime или --real")
 		parser.print_help()
 		return
 
@@ -89,13 +92,13 @@ def main():
 	# Статистика
 	total_anime = sum(len(v) for v in result['anime'].values())
 	total_real = sum(len(v) for v in result['real'].values())
-	print(f"Собрано аниме: {total_anime} файлов, реальных: {total_real} файлов")
+	logging.info(f"Собрано аниме: {total_anime} файлов, реальных: {total_real} файлов")
 
 	# Сохранение в JSON
 	import json
 	with open(args.output, 'w', encoding='utf-8') as f:
 		json.dump(result, f, ensure_ascii=False, indent=2)
-	print(f"Результат сохранён в {args.output}")
+	logging.info(f"Результат сохранён в {args.output}")
 
 if __name__ == '__main__':
 	main()
