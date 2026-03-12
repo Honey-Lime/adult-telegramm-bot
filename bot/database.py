@@ -73,6 +73,9 @@ def add_post_record(pic_type, date):
 		return_connection(conn)
 
 def add_picture_record(pic_type, post_id, filename):
+	"""
+	Добавляет запись о картинке и возвращает её ID при успехе, иначе False.
+	"""
 	conn = get_connection()
 	if not conn:
 		return False
@@ -81,11 +84,38 @@ def add_picture_record(pic_type, post_id, filename):
 			cur.execute("""
 				INSERT INTO pictures (type, post_id, path)
 				VALUES (%s, %s, %s)
+				RETURNING id
 			""", (pic_type, post_id, filename))
+			picture_id = cur.fetchone()[0]
 			conn.commit()
-		return True
+			return picture_id
 	except Exception as e:
 		logging.error(f"Error : {e}")
+		conn.rollback()
+		return False
+	finally:
+		return_connection(conn)
+
+
+def update_picture_path(picture_id, new_filename):
+	"""
+	Обновляет путь (имя файла) для указанной картинки.
+	Возвращает True при успехе, False при ошибке.
+	"""
+	conn = get_connection()
+	if not conn:
+		return False
+	try:
+		with conn.cursor() as cur:
+			cur.execute("""
+				UPDATE pictures
+				SET path = %s
+				WHERE id = %s
+			""", (new_filename, picture_id))
+			conn.commit()
+			return True
+	except Exception as e:
+		logging.error(f"Error updating picture path: {e}")
 		conn.rollback()
 		return False
 	finally:
