@@ -80,3 +80,22 @@ def get_web_app_keyboard(chat_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Открыть мини-приложение", web_app=WebAppInfo(url=app_url))]
     ])
+def get_notifications_menu_keyboard() -> InlineKeyboardMarkup:
+    """
+    Клавиатура выбора оповещения для рассылки.
+    """
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Работа бота восстановлена", callback_data="notification_restored")],
+        [InlineKeyboardButton(text="Отмена", callback_data="notification_cancel")]
+    ])
+
+
+def get_notification_confirm_keyboard(notification_type: str) -> InlineKeyboardMarkup:
+    """
+    Клавиатура подтверждения отправки оповещения.
+    notification_type - тип оповещения (например, "restored").
+    """
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ Отправить", callback_data=f"notification_confirm_{notification_type}"),
+         InlineKeyboardButton(text="❌ Отмена", callback_data="notification_cancel")]
+    ])

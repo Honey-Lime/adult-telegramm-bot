@@ -594,11 +594,33 @@ class BotController:
 					return
 
 				await self.delete_current(chat_id, message_id)
+				keyboard = keyboards.get_notifications_menu_keyboard()
+				await self.send_and_track(chat_id, text="📢 Выберите оповещение для рассылки:", reply_markup=keyboard, track=False)
+
+			elif callback.data == "notification_restored":
+				if chat_id not in self.admin_ids:
+					await callback.answer("⛔ Доступ запрещён")
+					return
+
+				await self.delete_current(chat_id, message_id)
+				message_text = "Работа бота восстановлена, ждем вас снова"
+				keyboard = keyboards.get_notification_confirm_keyboard("restored")
+				await self.send_and_track(chat_id, text=f"📢 Отправить оповещение:\n\n{message_text}", reply_markup=keyboard, track=False)
+
+			elif callback.data == "notification_confirm_restored":
+				if chat_id not in self.admin_ids:
+					await callback.answer("⛔ Доступ запрещён")
+					return
+
+				await self.delete_current(chat_id, message_id)
 				await self.send_and_track(chat_id, text="📢 Рассылка сообщения всем пользователям...", track=False)
 
 				user_ids = database.get_all_user_ids()
 				if not user_ids:
 					await self.send_and_track(chat_id, text="❌ Нет пользователей для рассылки.", track=False)
+					# Возвращаем админ-меню
+					keyboard = keyboards.get_admin_panel_keyboard()
+					await self.send_and_track(chat_id, text="Админ-панель. Выберите действие:", reply_markup=keyboard, track=False)
 					return
 
 				success_count = 0
@@ -619,6 +641,15 @@ class BotController:
 				await self.send_and_track(chat_id, text=report, track=False)
 
 				# Возвращаем админ-меню
+				keyboard = keyboards.get_admin_panel_keyboard()
+				await self.send_and_track(chat_id, text="Админ-панель. Выберите действие:", reply_markup=keyboard, track=False)
+
+			elif callback.data == "notification_cancel":
+				if chat_id not in self.admin_ids:
+					await callback.answer("⛔ Доступ запрещён")
+					return
+
+				await self.delete_current(chat_id, message_id)
 				keyboard = keyboards.get_admin_panel_keyboard()
 				await self.send_and_track(chat_id, text="Админ-панель. Выберите действие:", reply_markup=keyboard, track=False)
 		finally:
