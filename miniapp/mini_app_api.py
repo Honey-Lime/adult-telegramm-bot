@@ -7,7 +7,7 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 import os
 import time
-from functools import lru_cache
+from functools import lru_cache, wraps
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -51,6 +51,7 @@ _CACHE_TTL = 30  # секунды
 def cached_with_ttl(ttl):
     """Декоратор для кэширования результата функции с TTL."""
     def decorator(func):
+        @wraps(func)
         async def wrapper(*args, **kwargs):
             key = (func.__name__, args, tuple(kwargs.items()))
             now = time.time()
