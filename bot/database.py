@@ -5,6 +5,7 @@ from psycopg2 import pool
 from psycopg2 import sql
 from config_reader import config
 import os
+import shutil
 
 from enum import Enum
 
@@ -582,6 +583,78 @@ def delete_image(image_id):
     finally:
         return_connection(conn)
 
+def move_image_to_correct_folder(image_id, new_type):
+    """
+    Перемещает файл изображения в папку, соответствующую новому типу.
+    Возвращает новый путь (имя файла) при успехе, None при ошибке.
+    """
+    conn = get_connection()
+    if not conn:
+        return None
+    try:
+        with conn.cursor() as cur:
+            # Получаем текущий тип и путь изображения
+            cur.execute("SELECT type, path FROM pictures WHERE id = %s", (image_id,))
+            row = cur.fetchone()
+            if not row:
+                logging.error(f"Image {image_id} not found in database")
+                return None
+            current_type, current_path = row
+            # Если тип уже совпадает, ничего не делаем
+            if current_type == new_type:
+                logging.info(f"Image {image_id} already has type {new_type}, no move needed")
+                return current_path
+
+            # Определяем исходную и целевую папки
+            src_dir = IMAGE_DIR_ANIME if current_type == ImageType.ANIME.value else IMAGE_DIR_REAL
+            dst_dir = IMAGE_DIR_ANIME if new_type == ImageType.ANIME.value else IMAGE_DIR_REAL
+
+            # Убедимся, что целевая директория существует
+            os.makedirs(dst_dir, exist_ok=True)
+
+            src_path = os.path.join(src_dir, current_path)
+            if not os.path.isfile(src_path):
+                logging.error(f"Source file not found: {src_path}")
+                return None
+
+            # Определяем целевое имя файла (может быть таким же, если нет конфликта)
+            dst_filename = current_path
+            dst_path = os.path.join(dst_dir, dst_filename)
+            counter = 1
+            # Если файл уже существует, добавляем суффикс (_1, _2, ...)
+            while os.path.exists(dst_path):
+                name, ext = os.path.splitext(current_path)
+                dst_filename = f"{name}_{counter}{ext}"
+                dst_path = os.path.join(dst_dir, dst_filename)
+                counter += 1
+                if counter > 100:
+                    logging.error(f"Too many conflicts for image {image_id}")
+                    return None
+
+            # Перемещаем файл
+            try:
+                shutil.move(src_path, dst_path)
+                logging.info(f"Moved image {image_id} from {src_path} to {dst_path}")
+            except Exception as e:
+                logging.error(f"Failed to move file: {e}")
+                return None
+
+            # Если имя файла изменилось, обновляем путь в БД
+            if dst_filename != current_path:
+                cur.execute("UPDATE pictures SET path = %s WHERE id = %s", (dst_filename, image_id))
+                conn.commit()
+                logging.info(f"Updated path for image {image_id} to {dst_filename}")
+            else:
+                conn.commit()
+            return dst_filename
+    except Exception as e:
+        logging.error(f"Error moving image {image_id}: {e}")
+        conn.rollback()
+        return None
+    finally:
+        return_connection(conn)
+
+
 def clear_moderation(image_id):
     """Снимает флаг need_moderate с изображения."""
     conn = get_connection()
@@ -674,6 +747,7 @@ def set_not_real_type(image_id, value):
 def toggle_type(user_id):
 	"""
 	Переключает тип текущего изображения и сбрасывает not_real_type в false.
+	Перемещает файл в соответствующую папку.
 	Возвращает сообщение для пользователя.
 	"""
 	user = get_user(user_id)
@@ -698,6 +772,14 @@ def toggle_type(user_id):
 				new_type = ImageType.REAL.value
 			else:
 				new_type = ImageType.ANIME.value
+
+			# Перемещаем файл в соответствующую папку
+			new_path = move_image_to_correct_folder(image_id, new_type)
+			if new_path is None:
+				logging.error(f"Failed to move file for image {image_id}")
+				# Можно продолжить, но лучше откатить?
+				# Пока просто продолжим, но файл останется в старой папке
+
 			# Обновляем тип и сбрасываем not_real_type
 			cur.execute("""
 				UPDATE pictures
