@@ -970,12 +970,14 @@ def get_image(user_id):
                 logging.warning(f"No candidate images for user {user_id}")
                 return None, None
 
+            logging.debug(f"Found {len(candidates)} candidate images for user {user_id}, type={user_type}, cycle={cycle}")
             # Преобразуем в словари
             cand_columns = [desc[0] for desc in cur.description]
-            for cand in candidates:
+            for idx, cand in enumerate(candidates):
                 img = dict(zip(cand_columns, cand))
                 full_path = os.path.join(base_path, img['path'])
-                # logging.warning(f"DEBUG {full_path}")
+                if idx == 0:
+                    logging.debug(f"First candidate path: {full_path}, exists={os.path.isfile(full_path)}")
                 if os.path.isfile(full_path):
                     # Нашли подходящее изображение
                     # Обновляем last_watched и cycle в одной транзакции
@@ -993,7 +995,7 @@ def get_image(user_id):
                     )
                     return full_path, img
             # Ни один файл не существует
-            logging.warning(f"User {user_id} has no available images with existing files")
+            logging.warning(f"User {user_id} has no available images with existing files (checked {len(candidates)} candidates)")
             return None, None
     except Exception as e:
         logging.error(f"Error in get_image for user {user_id}: {e}")
