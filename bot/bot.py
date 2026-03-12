@@ -587,6 +587,40 @@ class BotController:
 				await self.send_and_track(chat_id, text="Админ-панель. Выберите действие:", reply_markup=keyboard, track=False)
 
 
+			elif callback.data == "admin_notifications":
+				if chat_id not in self.admin_ids:
+					await callback.answer("⛔ Доступ запрещён")
+					await self.delete_current(chat_id, message_id)
+					return
+
+				await self.delete_current(chat_id, message_id)
+				await self.send_and_track(chat_id, text="📢 Рассылка сообщения всем пользователям...", track=False)
+
+				user_ids = database.get_all_user_ids()
+				if not user_ids:
+					await self.send_and_track(chat_id, text="❌ Нет пользователей для рассылки.", track=False)
+					return
+
+				success_count = 0
+				fail_count = 0
+				message_text = "Работа бота восстановлена, ждем вас снова"
+
+				for user_id in user_ids:
+					try:
+						await self.bot.send_message(user_id, message_text)
+						success_count += 1
+						# небольшая задержка, чтобы не превысить лимиты Telegram
+						await asyncio.sleep(0.05)
+					except Exception as e:
+						logging.warning(f"Не удалось отправить сообщение пользователю {user_id}: {e}")
+						fail_count += 1
+
+				report = f"✅ Рассылка завершена.\nУспешно: {success_count}\nНе удалось: {fail_count}"
+				await self.send_and_track(chat_id, text=report, track=False)
+
+				# Возвращаем админ-меню
+				keyboard = keyboards.get_admin_panel_keyboard()
+				await self.send_and_track(chat_id, text="Админ-панель. Выберите действие:", reply_markup=keyboard, track=False)
 		finally:
 			self.user_processing.pop(chat_id, None)
 

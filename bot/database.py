@@ -216,53 +216,72 @@ def load_all_message_history():
 
 
 def get_all_users_stats():
-	"""
-	Возвращает список пользователей с детальной статистикой.
-	Каждый элемент: {
-		'user_id': int,
-		'first_name': str или None,
-		'last_name': str или None,
-		'username': str или None,
-		'viewed_anime_count': int,
-		'viewed_real_count': int,
-		'viewed_total': int
-	}
-	"""
-	conn = get_connection()
-	if not conn:
-		return []
-	try:
-		with conn.cursor() as cur:
-			cur.execute("""
-				SELECT id,
-					   first_name,
-					   last_name,
-					   username,
-					   COALESCE(array_length(viewed_anime, 1), 0) as viewed_anime_count,
-					   COALESCE(array_length(viewed_real, 1), 0) as viewed_real_count,
-					   COALESCE(array_length(viewed_anime, 1), 0) +
-					   COALESCE(array_length(viewed_real, 1), 0) as viewed_total
-				FROM users
-				ORDER BY id
-			""")
-			rows = cur.fetchall()
-			result = []
-			for row in rows:
-				result.append({
-					'user_id': row[0],
-					'first_name': row[1],
-					'last_name': row[2],
-					'username': row[3],
-					'viewed_anime_count': row[4],
-					'viewed_real_count': row[5],
-					'viewed_total': row[6]
-				})
-			return result
-	except Exception as e:
-		logging.error(f"Error in get_all_users_stats: {e}")
-		return []
-	finally:
-		return_connection(conn)
+    """
+    Возвращает список пользователей с детальной статистикой.
+    Каждый элемент: {
+        'user_id': int,
+        'first_name': str или None,
+        'last_name': str или None,
+        'username': str или None,
+        'viewed_anime_count': int,
+        'viewed_real_count': int,
+        'viewed_total': int
+    }
+    """
+    conn = get_connection()
+    if not conn:
+        return []
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT id,
+                       first_name,
+                       last_name,
+                       username,
+                       COALESCE(array_length(viewed_anime, 1), 0) as viewed_anime_count,
+                       COALESCE(array_length(viewed_real, 1), 0) as viewed_real_count,
+                       COALESCE(array_length(viewed_anime, 1), 0) +
+                       COALESCE(array_length(viewed_real, 1), 0) as viewed_total
+                FROM users
+                ORDER BY id
+            """)
+            rows = cur.fetchall()
+            result = []
+            for row in rows:
+                result.append({
+                    'user_id': row[0],
+                    'first_name': row[1],
+                    'last_name': row[2],
+                    'username': row[3],
+                    'viewed_anime_count': row[4],
+                    'viewed_real_count': row[5],
+                    'viewed_total': row[6]
+                })
+            return result
+    except Exception as e:
+        logging.error(f"Error in get_all_users_stats: {e}")
+        return []
+    finally:
+        return_connection(conn)
+
+
+def get_all_user_ids():
+    """
+    Возвращает список всех ID пользователей (chat_id).
+    """
+    conn = get_connection()
+    if not conn:
+        return []
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id FROM users ORDER BY id")
+            rows = cur.fetchall()
+            return [row[0] for row in rows]
+    except Exception as e:
+        logging.error(f"Error in get_all_user_ids: {e}")
+        return []
+    finally:
+        return_connection(conn)
 
 
 def get_user(user_id, referrer_id=None):
@@ -496,18 +515,40 @@ def get_images_for_moderation():
         return_connection(conn)
 
 def delete_image(image_id):
+    """
+    Удаляет изображение из базы данных и файл с диска.
+    Возвращает True при успехе, False при ошибке.
+    """
     conn = get_connection()
     if not conn:
         return False
     try:
         with conn.cursor() as cur:
+            # Получаем тип и путь изображения
+            cur.execute("SELECT type, path FROM pictures WHERE id = %s", (image_id,))
+            row = cur.fetchone()
+            if row:
+                img_type, img_path = row
+                # Определяем базовую директорию
+                base_dir = IMAGE_DIR_ANIME if img_type == ImageType.ANIME.value else IMAGE_DIR_REAL
+                full_path = os.path.join(base_dir, img_path)
+                # Удаляем файл, если существует
+                if os.path.isfile(full_path):
+                    try:
+                        os.remove(full_path)
+                        logging.info(f"Файл изображения удалён: {full_path}")
+                    except OSError as e:
+                        logging.warning(f"Не удалось удалить файл {full_path}: {e}")
+                else:
+                    logging.warning(f"Файл изображения не найден: {full_path}")
+            # Удаляем запись из базы
             cur.execute("DELETE FROM pictures WHERE id = %s", (image_id,))
             conn.commit()
             return True
     except Exception as e:
-    	logging.error(f"Error in add_post_record: {e}, pic_type={pic_type}, date={date}")
-    	conn.rollback()
-    	return False
+        logging.error(f"Ошибка при удалении изображения {image_id}: {e}")
+        conn.rollback()
+        return False
     finally:
         return_connection(conn)
 
