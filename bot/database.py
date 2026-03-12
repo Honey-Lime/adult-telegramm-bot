@@ -1119,7 +1119,7 @@ def get_image(user_id):
                       AND need_moderate = false
                       AND value > -10
                       AND id != ALL(%s)
-                    ORDER BY total ASC
+                    ORDER BY total ASC, random()
                     LIMIT 50
                 """
             cur.execute(query, (user_type, viewed_array))
