@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 import psycopg2
@@ -52,10 +52,13 @@ def cached_with_ttl(ttl):
 
 @app.get("/api/top")
 @cached_with_ttl(ttl=30)
-async def get_top(type: int):
+async def get_top(image_type: int = Query(..., alias="type")):
     """
     Возвращает топ-25 изображений указанного типа (0 - аниме, 1 - реальные).
     """
+    import logging
+    logging.basicConfig(level=logging.INFO)
+    logging.info(f"get_top called with type={image_type}")
     conn = get_db_connection()
     try:
         with conn.cursor() as cur:
@@ -65,10 +68,12 @@ async def get_top(type: int):
                 WHERE type = %s
                 ORDER BY value DESC
                 LIMIT 25
-            """, (type,))
+            """, (image_type,))
             images = cur.fetchall()
+            logging.info(f"Found {len(images)} images")
             return images
     except Exception as e:
+        logging.error(f"Error in get_top: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
@@ -76,6 +81,9 @@ async def get_top(type: int):
 @app.get("/api/saved")
 @cached_with_ttl(ttl=10)
 async def get_saved(user_id: int):
+	import logging
+	logging.basicConfig(level=logging.INFO)
+	logging.info(f"get_saved called with user_id={user_id}")
 	conn = get_db_connection()
 	try:
 		with conn.cursor() as cur:
@@ -83,6 +91,7 @@ async def get_saved(user_id: int):
 			cur.execute("SELECT saved_images FROM users WHERE id = %s", (user_id,))
 			row = cur.fetchone()
 			if not row or not row['saved_images']:
+				logging.info("No saved images")
 				return []
 			saved_ids = row['saved_images']
 			# Запрашиваем картинки и сортируем по value
@@ -93,8 +102,10 @@ async def get_saved(user_id: int):
 				ORDER BY value DESC
 			""", (saved_ids,))
 			images = cur.fetchall()
+			logging.info(f"Found {len(images)} saved images")
 			return images
 	except Exception as e:
+		logging.error(f"Error in get_saved: {e}")
 		raise HTTPException(status_code=500, detail=str(e))
 	finally:
 		conn.close()
