@@ -1107,7 +1107,7 @@ def get_image(user_id):
                     WHERE type = %s
                       AND need_moderate = false
                       AND id != ALL(%s)
-                    ORDER BY value DESC
+                    ORDER BY value DESC, random()
                     OFFSET 25
                     LIMIT 50
                 """
