@@ -126,6 +126,38 @@ def load_to_database(data, target_anime_dir, target_real_dir):
                     logging.warning(f"Удалена запись картинки {picture_id} из-за ошибки перемещения.")
 
 
+def load_images_from_default_folders():
+    """
+    Загружает изображения из стандартных папок (NEW_ANIME_DIR, NEW_REAL_DIR)
+    и возвращает кортеж (total_anime, total_real) - количество добавленных файлов.
+    """
+    anime_folders = [NEW_ANIME_DIR]
+    real_folders = [NEW_REAL_DIR]
+
+    # Проверка существования папок
+    for folder in anime_folders + real_folders:
+        if not Path(folder).exists():
+            logging.warning(f"Папка {folder} не существует, будет создана при необходимости.")
+
+    # Сбор и объединение данных по типам
+    anime_merged = merge_dicts([collect_images_from_folder(f) for f in anime_folders])
+    real_merged = merge_dicts([collect_images_from_folder(f) for f in real_folders])
+
+    result = {
+        'anime': dict(anime_merged),
+        'real': dict(real_merged)
+    }
+
+    # Загрузка в БД и перемещение файлов
+    load_to_database(result, TARGET_ANIME_DIR, TARGET_REAL_DIR)
+
+    # Статистика
+    total_anime = sum(len(v) for v in result['anime'].values())
+    total_real = sum(len(v) for v in result['real'].values())
+    logging.info(f"Собрано аниме: {total_anime} файлов, реальных: {total_real} файлов")
+    return total_anime, total_real
+
+
 def main():
     parser = argparse.ArgumentParser(description='Сбор изображений из папок с группировкой по дате.')
     parser.add_argument('--anime', action='append', help='Папка с аниме (можно несколько)')

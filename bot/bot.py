@@ -25,6 +25,7 @@ from aiogram.types import (
 from config_reader import config
 import database
 import keyboards
+import image_loader
 from logging_config import setup_logging
 
 # Настройка логирования
@@ -596,6 +597,33 @@ class BotController:
 				await self.delete_current(chat_id, message_id)
 				keyboard = keyboards.get_notifications_menu_keyboard()
 				await self.send_and_track(chat_id, text="📢 Выберите оповещение для рассылки:", reply_markup=keyboard, track=False)
+
+			elif callback.data == "admin_load_images":
+				if chat_id not in self.admin_ids:
+					await callback.answer("⛔ Доступ запрещён")
+					await self.delete_current(chat_id, message_id)
+					return
+
+				await self.delete_current(chat_id, message_id)
+				await self.send_and_track(chat_id, text="🔄 Загрузка изображений...", track=False)
+				import time
+				start_time = time.time()
+				try:
+					total_anime, total_real = image_loader.load_images_from_default_folders()
+					elapsed = time.time() - start_time
+					report = (
+						f"✅ Загрузка завершена.\n"
+						f"Добавлено аниме: {total_anime}\n"
+						f"Добавлено фото: {total_real}\n"
+						f"Время выполнения: {elapsed:.2f} сек."
+					)
+				except Exception as e:
+					report = f"❌ Ошибка при загрузке: {e}"
+					logging.error(f"Ошибка в admin_load_images: {e}")
+				await self.send_and_track(chat_id, text=report, track=False)
+				# Возвращаем админ-меню
+				keyboard = keyboards.get_admin_panel_keyboard()
+				await self.send_and_track(chat_id, text="Админ-панель. Выберите действие:", reply_markup=keyboard, track=False)
 
 			elif callback.data == "notification_restored":
 				if chat_id not in self.admin_ids:
