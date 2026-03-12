@@ -975,7 +975,7 @@ def get_image(user_id):
             for cand in candidates:
                 img = dict(zip(cand_columns, cand))
                 full_path = os.path.join(base_path, img['path'])
-                logging.warning(f"DEBUG {full_path}")
+                # logging.warning(f"DEBUG {full_path}")
                 if os.path.isfile(full_path):
                     # Нашли подходящее изображение
                     # Обновляем last_watched и cycle в одной транзакции
