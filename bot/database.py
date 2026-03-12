@@ -941,6 +941,11 @@ def get_image(user_id):
             viewed_array = user['viewed_anime'] if user_type == ImageType.ANIME.value else user['viewed_real']
             base_path = IMAGE_DIR_ANIME if user_type == ImageType.ANIME.value else IMAGE_DIR_REAL
 
+            # Проверка существования базовой директории
+            if not os.path.isdir(base_path):
+                logging.error(f"Base directory does not exist: {base_path}")
+                return None, None
+
             # Строим запрос в зависимости от цикла
             if cycle == 0:
                 # good images: value DESC, OFFSET 25
@@ -970,14 +975,14 @@ def get_image(user_id):
                 logging.warning(f"No candidate images for user {user_id}")
                 return None, None
 
-            logging.debug(f"Found {len(candidates)} candidate images for user {user_id}, type={user_type}, cycle={cycle}")
+            logging.info(f"Found {len(candidates)} candidate images for user {user_id}, type={user_type}, cycle={cycle}")
             # Преобразуем в словари
             cand_columns = [desc[0] for desc in cur.description]
             for idx, cand in enumerate(candidates):
                 img = dict(zip(cand_columns, cand))
                 full_path = os.path.join(base_path, img['path'])
                 if idx == 0:
-                    logging.debug(f"First candidate path: {full_path}, exists={os.path.isfile(full_path)}")
+                    logging.info(f"First candidate path: {full_path}, exists={os.path.isfile(full_path)}")
                 if os.path.isfile(full_path):
                     # Нашли подходящее изображение
                     # Обновляем last_watched и cycle в одной транзакции
