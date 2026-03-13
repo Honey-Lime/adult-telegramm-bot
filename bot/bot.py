@@ -688,7 +688,7 @@ class BotController:
 
 	async def send_menu(self, chat_id: int) -> None:
 		keyboard = keyboards.get_main_menu_keyboard()
-		await self.send_and_track(chat_id, text="Выбери стиль картинок или получи реферальную ссылку:",
+		await self.send_and_track(chat_id, text="Здесь вы можете выбрать картинки для оценки(Аниме, Фото) или выбрать видео для просмотра. Также в нашем миниприложении(/app) вы можете увидеть свои сохраненные картинки и ТОП25 картинок по каждому типу.",
 								  reply_markup=keyboard)
 
 

@@ -11,8 +11,8 @@ def get_main_menu_keyboard() -> InlineKeyboardMarkup:
     Клавиатура главного меню (выбор типа контента и реферальная ссылка).
     """
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Anime", callback_data="anime"),
-         InlineKeyboardButton(text="Real", callback_data="real")],
+        [InlineKeyboardButton(text="🖼Аниме", callback_data="anime"),
+         InlineKeyboardButton(text="🖼Фото", callback_data="real")],
         [InlineKeyboardButton(text="🔗 Реферальная ссылка", callback_data="referral")]
     ])
 
