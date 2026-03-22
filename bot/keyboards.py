@@ -115,3 +115,25 @@ def get_notification_confirm_keyboard(notification_type: str) -> InlineKeyboardM
         [InlineKeyboardButton(text="✅ Отправить", callback_data=f"notification_confirm_{notification_type}"),
          InlineKeyboardButton(text="❌ Отмена", callback_data="notification_cancel")]
     ])
+def get_video_keyboard() -> InlineKeyboardMarkup:
+    """
+    Клавиатура для видео (лайк, дизлайк, жалоба).
+    Без кнопки сохранения.
+    """
+    buttons = [
+        InlineKeyboardButton(text="😐", callback_data="video_dislike"),
+        InlineKeyboardButton(text="❤️", callback_data="video_like"),
+        InlineKeyboardButton(text="⚠️ Жалоба", callback_data="video_report")
+    ]
+    keyboard_rows = [buttons[:2], buttons[2:]]
+    return InlineKeyboardMarkup(inline_keyboard=keyboard_rows)
+
+
+def get_video_report_keyboard() -> InlineKeyboardMarkup:
+    """
+    Клавиатура выбора причины жалобы на видео.
+    """
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Контент неприемлем", callback_data="video_report_inappropriate")],
+        [InlineKeyboardButton(text="Отмена", callback_data="video_report_cancel")]
+    ])

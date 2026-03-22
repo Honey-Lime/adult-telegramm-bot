@@ -58,6 +58,13 @@ class BotController:
 		self.last_picture_time: Dict[int, float] = {}			# chat_id -> время последней отправки картинки (для rate limit)
 		self.sending_picture: Dict[int, bool] = {}			   # chat_id -> флаг, выполняется ли сейчас отправка картинки
 
+		# +++ Видео +++
+		self.last_video_path: Dict[int, str] = {}				# chat_id -> путь к последнему видео
+		self.last_video_data: Dict[int, dict] = {}			   # chat_id -> данные последнего видео (id, path, ...)
+		self.last_video_message_id: Dict[int, int] = {}		  # chat_id -> message_id последнего видео
+		self.sending_video: Dict[int, bool] = {}				# chat_id -> флаг, выполняется ли сейчас отправка видео
+		self.last_video_send_time: Dict[int, float] = {}		# chat_id -> время последней отправки видео (для rate limit)
+
 		# Состояние ожидания пользовательского сообщения для рассылки
 		self.waiting_for_custom_message: Dict[int, bool] = {}  # chat_id -> bool (ожидает ли админ ввода сообщения)
 		self.pending_custom_message: Dict[int, str] = {}	   # chat_id -> текст сообщения для рассылки
@@ -604,11 +611,63 @@ class BotController:
 
 			elif callback.data == "video_top25":
 				await self.delete_current(chat_id, message_id)
+				await self.send_video(chat_id, 'top25')
+
+			elif callback.data == "video_good":
+				await self.delete_current(chat_id, message_id)
+				await self.send_video(chat_id, 'good')
+
+			elif callback.data == "video_free":
+				await self.delete_current(chat_id, message_id)
+				await self.send_video(chat_id, 'free')
+
+			elif callback.data == "video_like":
+				# Лайк на видео
+				if chat_id not in self.last_video_data:
+					await callback.answer("Нет активного видео")
+					return
+				video = self.last_video_data[chat_id]
+				video_id = video['id']
+				success = database.video_like(chat_id, video_id)
+				if success:
+					await self.remove_keyboard(chat_id, message_id)
+					await callback.answer("✅ +5 монет")
+				else:
+					await callback.answer("❌ Ошибка")
+
+			elif callback.data == "video_dislike":
+				# Дизлайк на видео
+				if chat_id not in self.last_video_data:
+					await callback.answer("Нет активного видео")
+					return
+				video = self.last_video_data[chat_id]
+				video_id = video['id']
+				success = database.video_dislike(chat_id, video_id)
+				if success:
+					await self.remove_keyboard(chat_id, message_id)
+					await callback.answer("✅ +5 монет")
+				else:
+					await callback.answer("❌ Ошибка")
+
+			elif callback.data == "video_report":
+				await self.delete_current(chat_id, message_id)
+				keyboard = keyboards.get_video_report_keyboard()
 				await self.send_and_track(
 					chat_id,
-					text="ТОП25",
-					track=False,
+					text="Выберите причину жалобы на видео:",
+					reply_markup=keyboard,
 				)
+
+			elif callback.data == "video_report_inappropriate":
+				await self.delete_current(chat_id, message_id)
+				if chat_id not in self.last_video_data:
+					await self.send_and_track(chat_id, text="Ошибка: видео не найдено")
+					return
+				video = self.last_video_data[chat_id]
+				video_id = video['id']
+				database.video_report(chat_id, video_id)
+				database.add_coins(chat_id, 1)
+				await self.send_and_track(chat_id, text="Жалоба отправлена. Спасибо! +1 монета")
 				# Возвращаем меню выбора видео
 				user = database.get_user(chat_id)
 				coins = user.get('coins', 0) if user else 0
@@ -619,29 +678,9 @@ class BotController:
 					reply_markup=keyboard,
 				)
 
-			elif callback.data == "video_good":
+			elif callback.data == "video_report_cancel":
 				await self.delete_current(chat_id, message_id)
-				await self.send_and_track(
-					chat_id,
-					text="Хорошее",
-					track=False,
-				)
-				user = database.get_user(chat_id)
-				coins = user.get('coins', 0) if user else 0
-				keyboard = keyboards.get_video_menu_keyboard()
-				await self.send_and_track(
-					chat_id,
-					text=f"Баланс: {coins}🪙\nВыберите видео:",
-					reply_markup=keyboard,
-				)
-
-			elif callback.data == "video_free":
-				await self.delete_current(chat_id, message_id)
-				await self.send_and_track(
-					chat_id,
-					text="Бесплатно",
-					track=False,
-				)
+				# Возвращаем меню выбора видео
 				user = database.get_user(chat_id)
 				coins = user.get('coins', 0) if user else 0
 				keyboard = keyboards.get_video_menu_keyboard()
@@ -972,6 +1011,84 @@ class BotController:
 
 		finally:
 			self.sending_picture[chat_id] = False
+
+
+	async def send_video(self, chat_id: int, video_type: str) -> None:
+		"""
+		Отправляет видео пользователю в зависимости от типа.
+		video_type: 'top25', 'good', 'free'
+		"""
+		# +++ Защита от одновременной отправки +++
+		if self.sending_video.get(chat_id, False):
+			logging.warning(f"Send video already in progress for {chat_id}")
+			return
+		self.sending_video[chat_id] = True
+
+		try:
+			# +++ Rate limit: не чаще 1 раза в секунду +++
+			now = asyncio.get_event_loop().time()
+			last_time = self.last_video_send_time.get(chat_id, 0)
+			if now - last_time < 1.0:
+				await self.send_and_track(
+					chat_id,
+					text="⏳ Слишком часто, подождите секунду",
+					track=False
+				)
+				return
+
+			# Проверяем, можно ли смотреть видео (ограничение 30 секунд)
+			if not database.can_watch_video(chat_id):
+				await self.send_and_track(
+					chat_id,
+					text="⏳ Подождите 30 секунд перед просмотром следующего видео.",
+					track=False
+				)
+				return
+
+			# Получаем видео в зависимости от типа
+			video = None
+			if video_type == 'top25':
+				video = database.get_video_top25(chat_id)
+			elif video_type == 'good':
+				video = database.get_video_good(chat_id)
+			elif video_type == 'free':
+				video = database.get_video_free(chat_id)
+
+			if not video:
+				await self.send_and_track(chat_id, text="Нет доступных видео")
+				return
+
+			video_path = os.path.join(database.VIDEO_DIR, video['path'])
+			if not os.path.isfile(video_path):
+				logging.error(f"Файл видео не найден: {video_path}")
+				await self.send_and_track(chat_id, text="Ошибка: файл видео отсутствует")
+				return
+
+			# Обновляем состояние пользователя (просмотр видео)
+			database.user_watched_video(chat_id, video['id'])
+
+			# Сохраняем данные видео
+			self.last_video_path[chat_id] = video_path
+			self.last_video_data[chat_id] = video
+			user = database.get_user(chat_id)
+			coins = user.get('coins', 0) if user else 0
+
+			caption_text = f"Видео | {coins}🪙"
+			keyboard = keyboards.get_video_keyboard()
+
+			video_file = FSInputFile(video_path)
+			sent = await self.send_and_track(
+				chat_id,
+				video=video_file,
+				caption=caption_text,
+				reply_markup=keyboard,
+			)
+
+			self.last_video_message_id[chat_id] = sent.message_id
+			self.last_video_send_time[chat_id] = now
+
+		finally:
+			self.sending_video[chat_id] = False
 
 
 	# ==================== ЗАПУСК БОТА ====================

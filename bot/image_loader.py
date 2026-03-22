@@ -326,14 +326,17 @@ def load_from_import_json():
                 # Перемещаем файл
                 try:
                     new_filename = move_file(src_path, TARGET_VIDEOS_DIR, filename)
-                    # Если имя изменилось, нужно обновить путь в БД (но в таблице videos нет поля path? есть path)
+                    # Если имя изменилось, обновляем путь в БД
                     if new_filename != filename:
-                        # Функции update_video_path нет, можно добавить, но пока просто логируем
-                        logging.warning(f"Имя видео изменено с {filename} на {new_filename}, но путь в БД не обновлён.")
+                        if database.update_video_path(video_id, new_filename):
+                            logging.info(f"Обновлён путь видео {video_id} на {new_filename}")
+                        else:
+                            logging.error(f"Не удалось обновить путь видео {video_id}")
                     videos_added += 1
                 except Exception as e:
                     logging.error(f"Ошибка перемещения видео {filename}: {e}")
-                    # Удалить запись видео? Нет функции, оставим как есть.
+                    # Удаляем запись видео из БД
+                    database.delete_video(video_id)
                     errors += 1
 
     # После успешной обработки очищаем папку new

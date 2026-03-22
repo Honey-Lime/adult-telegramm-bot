@@ -20,6 +20,7 @@ class ImageType(Enum):
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 IMAGE_DIR_ANIME = os.path.join(BASE_DIR, 'images', 'anime')
 IMAGE_DIR_REAL = os.path.join(BASE_DIR, 'images', 'real')
+VIDEO_DIR = os.path.join(BASE_DIR, 'images', 'videos')
 
 # Создаём пул соединений
 try:
@@ -233,12 +234,24 @@ def init_db():
 					id SERIAL PRIMARY KEY,
 					post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
 					path TEXT NOT NULL,
+					likes INTEGER DEFAULT 0,
+					dislikes INTEGER DEFAULT 0,
+					total INTEGER DEFAULT 0,
+					value INTEGER DEFAULT 0,
 					created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 				);
 				CREATE INDEX IF NOT EXISTS idx_videos_post_id ON videos(post_id);
 			""")
+			# Добавление столбцов для видео в таблицу users, если их нет
+			cur.execute("""
+				ALTER TABLE users
+				ADD COLUMN IF NOT EXISTS watched_videos INTEGER[] DEFAULT ARRAY[]::INTEGER[],
+				ADD COLUMN IF NOT EXISTS liked_videos INTEGER[] DEFAULT ARRAY[]::INTEGER[],
+				ADD COLUMN IF NOT EXISTS saved_videos INTEGER[] DEFAULT ARRAY[]::INTEGER[],
+				ADD COLUMN IF NOT EXISTS last_video_time TIMESTAMP;
+			""")
 			conn.commit()
-			logging.info("Database initialization completed (message_history, users columns, have_video, videos)")
+			logging.info("Database initialization completed (message_history, users columns, have_video, videos, video stats)")
 	except Exception as e:
 		logging.error(f"Error in init_db: {e}")
 	finally:
@@ -1321,5 +1334,353 @@ def get_image(user_id):
         logging.error(f"Error in get_image for user {user_id}: {e}")
         conn.rollback()
         return None, None
+    finally:
+        return_connection(conn)
+def get_video_top25(user_id):
+    """
+    Возвращает видео с наибольшим value (топ 25), исключая просмотренные пользователем.
+    Возвращает (путь_к_файлу, данные_видео) или (None, None).
+    """
+    conn = get_connection()
+    if not conn:
+        return None, None
+    try:
+        with conn.cursor() as cur:
+            # Получаем список просмотренных видео пользователя
+            cur.execute("SELECT watched_videos FROM users WHERE id = %s", (user_id,))
+            row = cur.fetchone()
+            watched = row[0] if row and row[0] else []
+            # Выбираем топ 25 видео по value, исключая просмотренные
+            cur.execute("""
+                SELECT * FROM videos
+                WHERE id != ALL(%s)
+                ORDER BY value DESC, random()
+                LIMIT 25
+            """, (watched,))
+            candidates = cur.fetchall()
+            if not candidates:
+                logging.warning(f"No top25 video candidates for user {user_id}")
+                return None, None
+            # Преобразуем в словари
+            columns = [desc[0] for desc in cur.description]
+            for cand in candidates:
+                video = dict(zip(columns, cand))
+                full_path = os.path.join(VIDEO_DIR, video['path'])
+                if os.path.isfile(full_path):
+                    return full_path, video
+            logging.warning(f"No top25 video files exist for user {user_id}")
+            return None, None
+    except Exception as e:
+        logging.error(f"Error in get_video_top25 for user {user_id}: {e}")
+        return None, None
+    finally:
+        return_connection(conn)
+
+
+def get_video_good(user_id):
+    """
+    Возвращает видео не из топ25 (value меньше чем у топ25), с наибольшим value,
+    исключая просмотренные.
+    """
+    conn = get_connection()
+    if not conn:
+        return None, None
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT watched_videos FROM users WHERE id = %s", (user_id,))
+            row = cur.fetchone()
+            watched = row[0] if row and row[0] else []
+            # Выбираем видео, исключая топ25 (можно через OFFSET 25)
+            cur.execute("""
+                SELECT * FROM videos
+                WHERE id != ALL(%s)
+                ORDER BY value DESC, random()
+                OFFSET 25
+                LIMIT 50
+            """, (watched,))
+            candidates = cur.fetchall()
+            if not candidates:
+                logging.warning(f"No good video candidates for user {user_id}")
+                return None, None
+            columns = [desc[0] for desc in cur.description]
+            for cand in candidates:
+                video = dict(zip(columns, cand))
+                full_path = os.path.join(VIDEO_DIR, video['path'])
+                if os.path.isfile(full_path):
+                    return full_path, video
+            logging.warning(f"No good video files exist for user {user_id}")
+            return None, None
+    except Exception as e:
+        logging.error(f"Error in get_video_good for user {user_id}: {e}")
+        return None, None
+    finally:
+        return_connection(conn)
+
+
+def get_video_free(user_id):
+    """
+    Возвращает видео с наименьшим total (наименее просмотренные),
+    исключая просмотренные.
+    """
+    conn = get_connection()
+    if not conn:
+        return None, None
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT watched_videos FROM users WHERE id = %s", (user_id,))
+            row = cur.fetchone()
+            watched = row[0] if row and row[0] else []
+            cur.execute("""
+                SELECT * FROM videos
+                WHERE id != ALL(%s)
+                ORDER BY total ASC, random()
+                LIMIT 50
+            """, (watched,))
+            candidates = cur.fetchall()
+            if not candidates:
+                logging.warning(f"No free video candidates for user {user_id}")
+                return None, None
+            columns = [desc[0] for desc in cur.description]
+            for cand in candidates:
+                video = dict(zip(columns, cand))
+                full_path = os.path.join(VIDEO_DIR, video['path'])
+                if os.path.isfile(full_path):
+                    return full_path, video
+            logging.warning(f"No free video files exist for user {user_id}")
+            return None, None
+    except Exception as e:
+        logging.error(f"Error in get_video_free for user {user_id}: {e}")
+        return None, None
+    finally:
+        return_connection(conn)
+
+
+def user_watched_video(user_id, video_id):
+    """
+    Добавляет видео в watched_videos пользователя и обновляет last_video_time.
+    Возвращает True при успехе.
+    """
+    conn = get_connection()
+    if not conn:
+        return False
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE users
+                SET watched_videos = array_append(coalesce(watched_videos, ARRAY[]::INTEGER[]), %s),
+                    last_video_time = CURRENT_TIMESTAMP
+                WHERE id = %s
+            """, (video_id, user_id))
+            conn.commit()
+            return True
+    except Exception as e:
+        logging.error(f"Error in user_watched_video: {e}")
+        conn.rollback()
+        return False
+    finally:
+        return_connection(conn)
+
+
+def video_like(user_id, video_id):
+    """
+    Лайк видео: увеличивает likes, total, value, добавляет в liked_videos,
+    начисляет 5 монет пользователю.
+    Возвращает True при успехе.
+    """
+    conn = get_connection()
+    if not conn:
+        return False
+    try:
+        with conn.cursor() as cur:
+            # Обновляем статистику видео
+            cur.execute("""
+                UPDATE videos
+                SET likes = likes + 1,
+                    total = total + 1,
+                    value = value + 1
+                WHERE id = %s
+            """, (video_id,))
+            if cur.rowcount == 0:
+                conn.rollback()
+                return False
+            # Добавляем в liked_videos
+            cur.execute("""
+                UPDATE users
+                SET liked_videos = array_append(coalesce(liked_videos, ARRAY[]::INTEGER[]), %s)
+                WHERE id = %s
+            """, (video_id, user_id))
+            # Начисляем 5 монет
+            cur.execute("UPDATE users SET coins = coins + 5 WHERE id = %s", (user_id,))
+            conn.commit()
+            return True
+    except Exception as e:
+        logging.error(f"Error in video_like: {e}")
+        conn.rollback()
+        return False
+    finally:
+        return_connection(conn)
+
+
+def video_dislike(user_id, video_id):
+    """
+    Дизлайк видео: увеличивает dislikes, total, уменьшает value,
+    начисляет 5 монет пользователю.
+    """
+    conn = get_connection()
+    if not conn:
+        return False
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE videos
+                SET dislikes = dislikes + 1,
+                    total = total + 1,
+                    value = value - 1
+                WHERE id = %s
+            """, (video_id,))
+            if cur.rowcount == 0:
+                conn.rollback()
+                return False
+            cur.execute("UPDATE users SET coins = coins + 5 WHERE id = %s", (user_id,))
+            conn.commit()
+            return True
+    except Exception as e:
+        logging.error(f"Error in video_dislike: {e}")
+        conn.rollback()
+        return False
+    finally:
+        return_connection(conn)
+
+
+def video_report(user_id, video_id):
+    """
+    Жалоба на видео: увеличивает total (можно также увеличить dislikes?).
+    Пока просто увеличим total на 1.
+    Возвращает True при успехе.
+    """
+    conn = get_connection()
+    if not conn:
+        return False
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE videos
+                SET total = total + 1
+                WHERE id = %s
+            """, (video_id,))
+            conn.commit()
+            return True
+    except Exception as e:
+        logging.error(f"Error in video_report: {e}")
+        conn.rollback()
+        return False
+    finally:
+        return_connection(conn)
+
+
+def get_video_by_id(video_id):
+    """
+    Возвращает данные видео по ID или None.
+    """
+    conn = get_connection()
+    if not conn:
+        return None
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM videos WHERE id = %s", (video_id,))
+            row = cur.fetchone()
+            if row:
+                columns = [desc[0] for desc in cur.description]
+                return dict(zip(columns, row))
+            return None
+    except Exception as e:
+        logging.error(f"Error in get_video_by_id: {e}")
+        return None
+    finally:
+        return_connection(conn)
+
+
+def update_video_path(video_id, new_path):
+    """
+    Обновляет путь (имя файла) для указанного видео.
+    Возвращает True при успехе, False при ошибке.
+    """
+    conn = get_connection()
+    if not conn:
+        return False
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE videos
+                SET path = %s
+                WHERE id = %s
+            """, (new_path, video_id))
+            conn.commit()
+            return True
+    except Exception as e:
+        logging.error(f"Error updating video path: {e}")
+        conn.rollback()
+        return False
+    finally:
+        return_connection(conn)
+
+
+def delete_video(video_id):
+    """
+    Удаляет видео из базы данных и файл с диска.
+    Возвращает True при успехе, False при ошибке.
+    """
+    conn = get_connection()
+    if not conn:
+        return False
+    try:
+        with conn.cursor() as cur:
+            # Получаем путь видео
+            cur.execute("SELECT path FROM videos WHERE id = %s", (video_id,))
+            row = cur.fetchone()
+            if row:
+                video_path = row[0]
+                full_path = os.path.join(VIDEO_DIR, video_path)
+                if os.path.isfile(full_path):
+                    try:
+                        os.remove(full_path)
+                        logging.info(f"Файл видео удалён: {full_path}")
+                    except OSError as e:
+                        logging.warning(f"Не удалось удалить файл {full_path}: {e}")
+                else:
+                    logging.warning(f"Файл видео не найден: {full_path}")
+            # Удаляем запись из базы
+            cur.execute("DELETE FROM videos WHERE id = %s", (video_id,))
+            conn.commit()
+            return True
+    except Exception as e:
+        logging.error(f"Ошибка при удалении видео {video_id}: {e}")
+        conn.rollback()
+        return False
+    finally:
+        return_connection(conn)
+
+
+def can_watch_video(user_id):
+    """
+    Проверяет, прошло ли 30 секунд с последнего просмотра видео.
+    Возвращает True, если можно смотреть (прошло >=30 секунд или last_video_time NULL).
+    """
+    conn = get_connection()
+    if not conn:
+        return False
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT last_video_time FROM users WHERE id = %s", (user_id,))
+            row = cur.fetchone()
+            if not row or row[0] is None:
+                return True
+            last_time = row[0]
+            cur.execute("SELECT EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - %s))", (last_time,))
+            diff = cur.fetchone()[0]
+            return diff >= 30
+    except Exception as e:
+        logging.error(f"Error in can_watch_video: {e}")
+        return False
     finally:
         return_connection(conn)
