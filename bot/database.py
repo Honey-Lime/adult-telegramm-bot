@@ -1266,14 +1266,14 @@ def get_image(user_id):
                     LIMIT 50
                 """
             else:
-                # noname images: value > -10, total ASC
+                # noname images: total <= 5 OR likes / total > 0.25
                 query = """
                     SELECT * FROM pictures
                     WHERE type = %s
                       AND need_moderate = false
-                      AND value > -10
                       AND id != ALL(%s)
-                    ORDER BY total ASC, random()
+                      AND ( total <= 5 OR (total > 0 AND likes::numeric / total > 0.25) )
+                    ORDER BY random()
                     LIMIT 50
                 """
             cur.execute(query, (user_type, viewed_array))
