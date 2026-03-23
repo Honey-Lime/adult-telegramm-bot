@@ -1286,7 +1286,7 @@ def get_image(user_id):
                       AND need_moderate = false
                       AND id != ALL(%s)
                       AND ( total <= 5 OR (total > 0 AND likes::numeric / total > 0.25) )
-                    ORDER BY random()
+                    ORDER BY total ASC, random()
                     LIMIT 50
                 """
             cur.execute(query, (user_type, viewed_array))
