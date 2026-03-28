@@ -60,6 +60,7 @@ def get_admin_panel_keyboard() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="👥 Пользователи", callback_data="admin_users")],
         [InlineKeyboardButton(text="🛡 Модерация", callback_data="admin_moderation")],
         [InlineKeyboardButton(text="📢 Оповещения", callback_data="admin_notifications")],
+        [InlineKeyboardButton(text="🔗 Рекламные ссылки", callback_data="admin_promo_links")],
         [InlineKeyboardButton(text="📥 Загрузка контента", callback_data="admin_load_images")],
         [InlineKeyboardButton(text="🧹 Чистка по json", callback_data="admin_cleanup_json")],
         [InlineKeyboardButton(text="📋 Логи", callback_data="admin_logs")]
@@ -136,4 +137,15 @@ def get_video_report_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Контент неприемлем", callback_data="video_report_inappropriate")],
         [InlineKeyboardButton(text="Отмена", callback_data="video_report_cancel")]
+    ])
+
+
+def get_promo_links_menu_keyboard() -> InlineKeyboardMarkup:
+    """
+    Клавиатура меню рекламных ссылок.
+    """
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="➕ Создать ссылку", callback_data="promo_create")],
+        [InlineKeyboardButton(text="📊 Статистика", callback_data="promo_stats")],
+        [InlineKeyboardButton(text="🔙 Назад", callback_data="admin_menu")]
     ])

@@ -116,5 +116,103 @@ class TestDatabase:
         assert result is False
 
 
+class TestPromoLinks:
+    """Тесты для функций работы с рекламными ссылками."""
+
+    @pytest.fixture
+    def mock_connection(self):
+        """Фикстура для мока соединения с БД."""
+        with patch('database.get_connection') as mock_get_conn:
+            mock_conn = Mock()
+            mock_cursor = Mock()
+            mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+            mock_get_conn.return_value = mock_conn
+            yield mock_conn, mock_cursor
+
+    def test_create_promo_link_success(self, mock_connection):
+        """Тест успешного создания рекламной ссылки."""
+        mock_conn, mock_cursor = mock_connection
+        mock_cursor.fetchone.return_value = ('abc12345',)
+        
+        success, result = database.create_promo_link("Test Link")
+        
+        assert success is True
+        assert result == 'abc12345'
+        mock_cursor.execute.assert_called()
+
+    def test_create_promo_link_no_connection(self, mock_connection):
+        """Тест создания ссылки при отсутствии подключения."""
+        mock_conn, mock_cursor = mock_connection
+        with patch('database.get_connection', return_value=None):
+            success, result = database.create_promo_link("Test Link")
+            assert success is False
+            assert result == "Нет подключения к БД"
+
+    def test_get_all_promo_links_success(self, mock_connection):
+        """Тест получения списка всех рекламных ссылок."""
+        mock_conn, mock_cursor = mock_connection
+        mock_cursor.fetchall.return_value = [
+            (1, "Test Link 1", "abc12345", None, 10),
+            (2, "Test Link 2", "xyz67890", None, 5)
+        ]
+        
+        links = database.get_all_promo_links()
+        
+        assert len(links) == 2
+        assert links[0]['name'] == "Test Link 1"
+        assert links[0]['clicks_count'] == 10
+        assert links[1]['name'] == "Test Link 2"
+        assert links[1]['clicks_count'] == 5
+
+    def test_get_all_promo_links_empty(self, mock_connection):
+        """Тест получения пустого списка ссылок."""
+        mock_conn, mock_cursor = mock_connection
+        mock_cursor.fetchall.return_value = []
+        
+        links = database.get_all_promo_links()
+        
+        assert len(links) == 0
+        assert links == []
+
+    def test_track_promo_link_click_success(self, mock_connection):
+        """Тест успешной записи перехода по ссылке."""
+        mock_conn, mock_cursor = mock_connection
+        mock_cursor.fetchone.return_value = (1,)  # promo_link_id
+        mock_cursor.rowcount = 1
+        
+        result = database.track_promo_link_click("abc12345", 123)
+        
+        assert result is True
+
+    def test_track_promo_link_click_not_found(self, mock_connection):
+        """Тест записи перехода по несуществующей ссылке."""
+        mock_conn, mock_cursor = mock_connection
+        mock_cursor.fetchone.return_value = None  # ссылка не найдена
+        
+        result = database.track_promo_link_click("invalid_code", 123)
+        
+        assert result is False
+
+    def test_get_promo_link_by_code_success(self, mock_connection):
+        """Тест получения ссылки по коду."""
+        mock_conn, mock_cursor = mock_connection
+        mock_cursor.fetchone.return_value = (1, "Test Link", "abc12345", None)
+        
+        link = database.get_promo_link_by_code("abc12345")
+        
+        assert link is not None
+        assert link['name'] == "Test Link"
+        assert link['code'] == "abc12345"
+
+    def test_get_promo_link_by_code_not_found(self, mock_connection):
+        """Тест получения несуществующей ссылки."""
+        mock_conn, mock_cursor = mock_connection
+        mock_cursor.fetchone.return_value = None
+        
+        link = database.get_promo_link_by_code("invalid_code")
+        
+        assert link is None
+
+
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])

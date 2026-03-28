@@ -252,6 +252,26 @@ def init_db():
 			""")
 			conn.commit()
 			logging.info("Database initialization completed (message_history, users columns, have_video, videos, video stats)")
+			
+			# Инициализация таблиц для рекламных ссылок
+			cur.execute("""
+				CREATE TABLE IF NOT EXISTS promo_links (
+					id SERIAL PRIMARY KEY,
+					name TEXT NOT NULL,
+					code TEXT UNIQUE NOT NULL,
+					created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+				);
+				CREATE TABLE IF NOT EXISTS promo_link_stats (
+					id SERIAL PRIMARY KEY,
+					promo_link_id INTEGER NOT NULL REFERENCES promo_links(id) ON DELETE CASCADE,
+					user_id BIGINT NOT NULL,
+					clicked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+				);
+				CREATE INDEX IF NOT EXISTS idx_promo_links_code ON promo_links(code);
+				CREATE INDEX IF NOT EXISTS idx_promo_link_stats_promo_id ON promo_link_stats(promo_link_id);
+			""")
+			conn.commit()
+			logging.info("Promo links tables initialized")
 	except Exception as e:
 		logging.error(f"Error in init_db: {e}")
 	finally:
@@ -1682,5 +1702,183 @@ def can_watch_video(user_id):
     except Exception as e:
         logging.error(f"Error in can_watch_video: {e}")
         return False
+    finally:
+        return_connection(conn)
+
+
+def init_promo_links_table():
+    """Создаёт таблицу для рекламных ссылок, если её нет."""
+    conn = get_connection()
+    if not conn:
+        return
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS promo_links (
+                    id SERIAL PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    code TEXT UNIQUE NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE TABLE IF NOT EXISTS promo_link_stats (
+                    id SERIAL PRIMARY KEY,
+                    promo_link_id INTEGER NOT NULL REFERENCES promo_links(id) ON DELETE CASCADE,
+                    user_id BIGINT NOT NULL,
+                    clicked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE INDEX IF NOT EXISTS idx_promo_links_code ON promo_links(code);
+                CREATE INDEX IF NOT EXISTS idx_promo_link_stats_promo_id ON promo_link_stats(promo_link_id);
+            """)
+            conn.commit()
+            logging.info("Promo links tables created successfully")
+    except Exception as e:
+        logging.error(f"Error creating promo links tables: {e}")
+        conn.rollback()
+    finally:
+        return_connection(conn)
+
+
+def create_promo_link(name: str, code: str = None) -> tuple:
+    """
+    Создаёт рекламную ссылку с указанным именем.
+    Если code не указан, генерируется уникальный код.
+    Возвращает кортеж (success, code_or_error).
+    """
+    import secrets
+    import string
+    
+    conn = get_connection()
+    if not conn:
+        return False, "Нет подключения к БД"
+    try:
+        with conn.cursor() as cur:
+            # Генерируем уникальный код, если не передан
+            if code is None:
+                alphabet = string.ascii_letters + string.digits
+                while True:
+                    code = ''.join(secrets.choice(alphabet) for _ in range(8))
+                    cur.execute("SELECT id FROM promo_links WHERE code = %s", (code,))
+                    if not cur.fetchone():
+                        break
+            
+            cur.execute("""
+                INSERT INTO promo_links (name, code)
+                VALUES (%s, %s)
+                RETURNING code
+            """, (name, code))
+            conn.commit()
+            return True, code
+    except Exception as e:
+        logging.error(f"Error creating promo link: {e}")
+        conn.rollback()
+        return False, str(e)
+    finally:
+        return_connection(conn)
+
+
+def get_all_promo_links() -> list:
+    """
+    Возвращает список всех рекламных ссылок со статистикой.
+    Каждый элемент: {
+        'id': int,
+        'name': str,
+        'code': str,
+        'created_at': datetime,
+        'clicks_count': int
+    }
+    """
+    conn = get_connection()
+    if not conn:
+        return []
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT 
+                    p.id,
+                    p.name,
+                    p.code,
+                    p.created_at,
+                    COUNT(s.user_id) as clicks_count
+                FROM promo_links p
+                LEFT JOIN promo_link_stats s ON p.id = s.promo_link_id
+                GROUP BY p.id, p.name, p.code, p.created_at
+                ORDER BY p.created_at DESC
+            """)
+            rows = cur.fetchall()
+            result = []
+            for row in rows:
+                result.append({
+                    'id': row[0],
+                    'name': row[1],
+                    'code': row[2],
+                    'created_at': row[3],
+                    'clicks_count': row[4]
+                })
+            return result
+    except Exception as e:
+        logging.error(f"Error getting promo links: {e}")
+        return []
+    finally:
+        return_connection(conn)
+
+
+def track_promo_link_click(code: str, user_id: int) -> bool:
+    """
+    Записывает переход по рекламной ссылке.
+    Возвращает True при успехе.
+    """
+    conn = get_connection()
+    if not conn:
+        return False
+    try:
+        with conn.cursor() as cur:
+            # Находим ссылку по коду
+            cur.execute("SELECT id FROM promo_links WHERE code = %s", (code,))
+            row = cur.fetchone()
+            if not row:
+                return False
+            promo_link_id = row[0]
+            
+            # Записываем переход (если пользователь ещё не переходил по этой ссылке)
+            cur.execute("""
+                INSERT INTO promo_link_stats (promo_link_id, user_id)
+                SELECT %s, %s
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM promo_link_stats 
+                    WHERE promo_link_id = %s AND user_id = %s
+                )
+            """, (promo_link_id, user_id, promo_link_id, user_id))
+            conn.commit()
+            return cur.rowcount > 0
+    except Exception as e:
+        logging.error(f"Error tracking promo link click: {e}")
+        conn.rollback()
+        return False
+    finally:
+        return_connection(conn)
+
+
+def get_promo_link_by_code(code: str) -> dict:
+    """
+    Возвращает данные рекламной ссылки по коду.
+    """
+    conn = get_connection()
+    if not conn:
+        return None
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id, name, code, created_at FROM promo_links WHERE code = %s", (code,))
+            row = cur.fetchone()
+            if row:
+                return {
+                    'id': row[0],
+                    'name': row[1],
+                    'code': row[2],
+                    'created_at': row[3]
+                }
+            return None
+    except Exception as e:
+        logging.error(f"Error getting promo link by code: {e}")
+        return None
     finally:
         return_connection(conn)

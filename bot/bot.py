@@ -69,6 +69,9 @@ class BotController:
 		# Состояние ожидания пользовательского сообщения для рассылки
 		self.waiting_for_custom_message: Dict[int, bool] = {}  # chat_id -> bool (ожидает ли админ ввода сообщения)
 		self.pending_custom_message: Dict[int, str] = {}	   # chat_id -> текст сообщения для рассылки
+		
+		# Состояние ожидания имени для рекламной ссылки
+		self.waiting_for_promo_name: Dict[int, bool] = {}  # chat_id -> bool (ожидает ли админ ввода имени ссылки)
 
 		self._register_handlers()
 		# Инициализация БД для истории сообщений
@@ -226,14 +229,28 @@ class BotController:
 		await self._update_user_profile_from_message(message)
 		chat_id = message.chat.id
 		referrer_id = None
+		promo_code = None
 
 		# Ручной разбор аргументов команды
 		if message.text and ' ' in message.text:
 			parts = message.text.split(maxsplit=1)
-			if len(parts) == 2 and parts[1].isdigit():
-				referrer_id = int(parts[1])
-				if referrer_id == chat_id:
-					referrer_id = None
+			if len(parts) == 2:
+				arg = parts[1]
+				# Проверяем, это цифровой ID (реферер) или промо-код
+				if arg.isdigit():
+					referrer_id = int(arg)
+					if referrer_id == chat_id:
+						referrer_id = None
+				else:
+					# Это промо-код
+					promo_code = arg
+
+		# Если это переход по промо-ссылке, записываем статистику
+		if promo_code:
+			promo_link = database.get_promo_link_by_code(promo_code)
+			if promo_link:
+				database.track_promo_link_click(promo_link['id'], chat_id)
+				logging.info(f"Переход по промо-ссылке: {promo_code}, пользователь: {chat_id}")
 
 		# Получаем пользователя и флаг создания
 		user, created = database.get_or_create_user(chat_id, referrer_id)
@@ -315,6 +332,37 @@ class BotController:
 				track=False
 			)
 			# Удаляем сообщение пользователя (опционально)
+			try:
+				await message.delete()
+			except:
+				pass
+
+		# Обработка имени для рекламной ссылки
+		if chat_id in self.waiting_for_promo_name and self.waiting_for_promo_name[chat_id]:
+			if not message.text:
+				await message.answer("Пожалуйста, отправьте текстовое сообщение с именем ссылки.")
+				return
+			# Создаём промо-ссылку с первым сообщением как именем
+			promo_name = message.text
+			success, result = database.create_promo_link(promo_name)
+			
+			if success:
+				bot_info = await self.bot.me()
+				promo_url = f"https://t.me/{bot_info.username}?start={result}"
+				await self.send_and_track(
+					chat_id,
+					text=f"✅ Рекламная ссылка создана:\n\n📛 Название: {promo_name}\n🔗 Ссылка: {promo_url}\n\nОтправьте ещё одно сообщение для создания новой ссылки или нажмите 'Назад' для выхода.",
+					track=False
+				)
+			else:
+				await self.send_and_track(
+					chat_id,
+					text=f"❌ Ошибка при создании ссылки: {result}",
+					track=False
+				)
+				self.waiting_for_promo_name[chat_id] = False
+			
+			# Удаляем сообщение админа
 			try:
 				await message.delete()
 			except:
@@ -942,6 +990,64 @@ class BotController:
 				await self.send_and_track(chat_id, text="Админ-панель. Выберите действие:", reply_markup=keyboard, track=False)
 
 			elif callback.data == "notification_cancel":
+				if chat_id not in self.admin_ids:
+					await callback.answer("⛔ Доступ запрещён")
+					return
+
+				await self.delete_current(chat_id, message_id)
+				keyboard = keyboards.get_admin_panel_keyboard()
+				await self.send_and_track(chat_id, text="Админ-панель. Выберите действие:", reply_markup=keyboard, track=False)
+
+			# --- Рекламные ссылки ---
+			elif callback.data == "admin_promo_links":
+				if chat_id not in self.admin_ids:
+					await callback.answer("⛔ Доступ запрещён")
+					await self.delete_current(chat_id, message_id)
+					return
+
+				await self.delete_current(chat_id, message_id)
+				keyboard = keyboards.get_promo_links_menu_keyboard()
+				await self.send_and_track(chat_id, text="🔗 Рекламные ссылки. Выберите действие:", reply_markup=keyboard, track=False)
+
+			elif callback.data == "promo_create":
+				if chat_id not in self.admin_ids:
+					await callback.answer("⛔ Доступ запрещён")
+					return
+
+				await self.delete_current(chat_id, message_id)
+				self.waiting_for_promo_name[chat_id] = True
+				await self.send_and_track(
+					chat_id,
+					text="📝 Введите название для рекламной ссылки.\n\nПервое отправленное сообщение станет названием ссылки, а ссылка сгенерируется автоматически.",
+					track=False
+				)
+
+			elif callback.data == "promo_stats":
+				if chat_id not in self.admin_ids:
+					await callback.answer("⛔ Доступ запрещён")
+					return
+
+				await self.delete_current(chat_id, message_id)
+				promo_links = database.get_all_promo_links()
+				
+				if not promo_links:
+					text = "📊 Статистика по рекламным ссылкам:\n\n❌ Пока нет созданных ссылок."
+				else:
+					lines = ["📊 Статистика по рекламным ссылкам:\n"]
+					for link in promo_links:
+						bot_info = await self.bot.me()
+						promo_url = f"https://t.me/{bot_info.username}?start={link['code']}"
+						lines.append(
+							f"📛 {link['name']}\n"
+							f"👥 Переходов: {link['clicks_count']}\n"
+							f"🔗 {promo_url}\n"
+						)
+					text = "\n".join(lines)
+
+				keyboard = keyboards.get_promo_links_menu_keyboard()
+				await self.send_and_track(chat_id, text=text, reply_markup=keyboard, track=False)
+
+			elif callback.data == "admin_menu":
 				if chat_id not in self.admin_ids:
 					await callback.answer("⛔ Доступ запрещён")
 					return
