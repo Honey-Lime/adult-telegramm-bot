@@ -303,15 +303,15 @@ def load_from_import_json():
 
         # Обрабатываем видео
         if videos:
-            # Если пост ещё не создан (нет фото), создаём пост без типа
+            # Если пост ещё не создан (нет фото), создаём пост с типом 777
             if not post_id:
-                # Создаём пост для видео без типа
-                post_id = database.add_post_record(None, date_str)
+                # Создаём пост для видео (тип 777 = видео без фото)
+                post_id = database.add_post_record(777, date_str)
                 if not post_id:
                     logging.error(f"Не удалось создать пост для даты {date_str}, пропускаем.")
                     errors += len(videos)
                     continue
-                logging.info(f"Создан новый пост {post_id} для даты {date_str} (только видео) без типа")
+                logging.info(f"Создан новый пост {post_id} для даты {date_str} (только видео)")
             else:
                 # Устанавливаем have_video = TRUE для поста, если есть фото
                 if not database.update_post_have_video(post_id):
@@ -357,24 +357,40 @@ def load_from_import_json():
                     database.delete_video(video_id)
                     errors += 1
 
-    # После успешной обработки очищаем папку new
-    try:
-        if NEW_DIR.exists():
-            for item in NEW_DIR.iterdir():
-                if item.is_file():
-                    item.unlink()
-                elif item.is_dir():
-                    shutil.rmtree(item)
-            logging.info(f"Папка {NEW_DIR} очищена.")
-    except Exception as e:
-        logging.error(f"Ошибка при очистке папки new: {e}")
-
     elapsed = time.time() - start_time
     logging.info(
         f"Загрузка из import.json завершена за {elapsed:.2f} сек. "
         f"Добавлено фото: {photos_added}, видео: {videos_added}, ошибок: {errors}"
     )
     return photos_added, videos_added, errors
+
+
+def clear_import_folder():
+    """
+    Очищает папку new (IMPORT_DIR) и возвращает статистику удаленных файлов.
+    Возвращает кортеж (files_count, folders_count) - количество удаленных файлов и папок.
+    """
+    files_count = 0
+    folders_count = 0
+    
+    if not NEW_DIR.exists():
+        logging.warning(f"Папка {NEW_DIR} не существует.")
+        return 0, 0
+    
+    try:
+        for item in NEW_DIR.iterdir():
+            if item.is_file():
+                item.unlink()
+                files_count += 1
+            elif item.is_dir():
+                shutil.rmtree(item)
+                folders_count += 1
+        logging.info(f"Папка {NEW_DIR} очищена. Удалено файлов: {files_count}, папок: {folders_count}")
+    except Exception as e:
+        logging.error(f"Ошибка при очистке папки new: {e}")
+        raise
+    
+    return files_count, folders_count
 
 
 def main():

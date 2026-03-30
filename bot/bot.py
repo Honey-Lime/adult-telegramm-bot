@@ -873,6 +873,50 @@ class BotController:
 				keyboard = keyboards.get_admin_panel_keyboard()
 				await self.send_and_track(chat_id, text="Админ-панель. Выберите действие:", reply_markup=keyboard, track=False)
 
+			elif callback.data == "admin_clear_import_folder":
+				if chat_id not in self.admin_ids:
+					await callback.answer("⛔ Доступ запрещён")
+					return
+
+				await self.delete_current(chat_id, message_id)
+				# Показываем подтверждение с уточнением
+				keyboard = keyboards.get_clear_folder_confirm_keyboard()
+				await self.send_and_track(
+					chat_id,
+					text="🗑 Очистка папки загрузки\n\n⚠️ Все файлы и папки в папке 'images/new' будут удалены без возможности восстановления.\n\nВы уверены?",
+					reply_markup=keyboard,
+					track=False
+				)
+
+			elif callback.data == "admin_clear_import_folder_confirm":
+				if chat_id not in self.admin_ids:
+					await callback.answer("⛔ Доступ запрещён")
+					return
+
+				await self.delete_current(chat_id, message_id)
+				await self.send_and_track(chat_id, text="🗑 Очистка папки загрузки...", track=False)
+				
+				try:
+					files_count, folders_count = image_loader.clear_import_folder()
+					report = f"✅ Папка загрузки очищена.\n\nУдалено файлов: {files_count}\nУдалено папок: {folders_count}"
+				except Exception as e:
+					report = f"❌ Ошибка при очистке: {e}"
+					logging.error(f"Ошибка в admin_clear_import_folder: {e}")
+				
+				await self.send_and_track(chat_id, text=report, track=False)
+				# Возвращаем админ-меню
+				keyboard = keyboards.get_admin_panel_keyboard()
+				await self.send_and_track(chat_id, text="Админ-панель. Выберите действие:", reply_markup=keyboard, track=False)
+
+			elif callback.data == "admin_clear_import_folder_cancel":
+				if chat_id not in self.admin_ids:
+					await callback.answer("⛔ Доступ запрещён")
+					return
+
+				await self.delete_current(chat_id, message_id)
+				keyboard = keyboards.get_admin_panel_keyboard()
+				await self.send_and_track(chat_id, text="Админ-панель. Выберите действие:", reply_markup=keyboard, track=False)
+
 			elif callback.data == "admin_cleanup_json":
 				if chat_id not in self.admin_ids:
 					await callback.answer("⛔ Доступ запрещён")

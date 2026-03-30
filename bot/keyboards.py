@@ -62,6 +62,7 @@ def get_admin_panel_keyboard() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="📢 Оповещения", callback_data="admin_notifications")],
         [InlineKeyboardButton(text="🔗 Рекламные ссылки", callback_data="admin_promo_links")],
         [InlineKeyboardButton(text="📥 Загрузка контента", callback_data="admin_load_images")],
+        [InlineKeyboardButton(text="🗑 Очистить папку загрузки", callback_data="admin_clear_import_folder")],
         [InlineKeyboardButton(text="🧹 Чистка по json", callback_data="admin_cleanup_json")],
         [InlineKeyboardButton(text="📋 Логи", callback_data="admin_logs")]
     ])
@@ -163,3 +164,13 @@ def get_promo_delete_list_keyboard(links: list) -> InlineKeyboardMarkup:
         buttons.append([InlineKeyboardButton(text=btn_text, callback_data=f"promo_del_{link['id']}")])
     buttons.append([InlineKeyboardButton(text="🔙 Назад", callback_data="promo_links_menu")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def get_clear_folder_confirm_keyboard() -> InlineKeyboardMarkup:
+    """
+    Клавиатура подтверждения очистки папки загрузки.
+    """
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ Да, удалить все файлы", callback_data="admin_clear_import_folder_confirm"),
+         InlineKeyboardButton(text="❌ Отмена", callback_data="admin_clear_import_folder_cancel")]
+    ])
