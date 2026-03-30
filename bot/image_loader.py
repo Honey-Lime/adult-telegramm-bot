@@ -303,28 +303,36 @@ def load_from_import_json():
 
         # Обрабатываем видео
         if videos:
-            # Если пост ещё не создан (нет фото), создаём пост на основе типа из первого видео?
-            # Но по условию видео добавляются только если есть фото в том же посте.
-            # Если фото нет, возможно, видео не должно добавляться? Пока пропустим.
+            # Если пост ещё не создан (нет фото), создаём пост без типа
             if not post_id:
-                logging.warning(f"Для даты {date_str} есть видео, но нет фото, пропускаем видео.")
-                errors += len(videos)
-                continue
-
-            # Устанавливаем have_video = TRUE для поста
-            if not database.update_post_have_video(post_id):
-                logging.warning(f"Не удалось установить have_video для поста {post_id}")
+                # Создаём пост для видео без типа
+                post_id = database.add_post_record(None, date_str)
+                if not post_id:
+                    logging.error(f"Не удалось создать пост для даты {date_str}, пропускаем.")
+                    errors += len(videos)
+                    continue
+                logging.info(f"Создан новый пост {post_id} для даты {date_str} (только видео) без типа")
+            else:
+                # Устанавливаем have_video = TRUE для поста, если есть фото
+                if not database.update_post_have_video(post_id):
+                    logging.warning(f"Не удалось установить have_video для поста {post_id}")
 
             for video_rel_path in videos:
-                # Видео могут быть в папке videos или прямо в new/videos
+                # Видео могут быть в папке videos, anime, real или прямо в new
                 filename = Path(video_rel_path).name
                 src_path = NEW_VIDEOS_DIR / filename
                 if not src_path.exists():
                     src_path = NEW_DIR / video_rel_path
                     if not src_path.exists():
-                        logging.error(f"Файл видео не найден: {video_rel_path}, пропускаем.")
-                        errors += 1
-                        continue
+                        # Проверяем в подпапках anime и real
+                        if video_rel_path.startswith('anime/'):
+                            src_path = NEW_ANIME_DIR / filename
+                        elif video_rel_path.startswith('real/'):
+                            src_path = NEW_REAL_DIR / filename
+                        if not src_path.exists():
+                            logging.error(f"Файл видео не найден: {video_rel_path}, пропускаем.")
+                            errors += 1
+                            continue
 
                 # Добавляем запись видео в БД
                 video_id = database.add_video_record(post_id, filename)
