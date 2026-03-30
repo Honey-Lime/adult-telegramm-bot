@@ -211,17 +211,23 @@ def load_from_import_json():
     TARGET_VIDEOS_DIR.mkdir(parents=True, exist_ok=True)
 
     for date_str, entry in import_data.items():
+        # Проверяем, что entry - это словарь
+        if not isinstance(entry, dict):
+            logging.warning(f"Неверный формат записи для даты {date_str}: ожидается dict, получено {type(entry)}, пропускаем.")
+            errors += 1
+            continue
+        
         pictures = entry.get('pictures', [])
         videos = entry.get('videos', [])
 
         # Определяем тип по первому фото (если есть)
         pic_type = None
         if pictures:
-            # Пример пути: "anime\\photo_1@...jpg" или "real\\photo_..."
+            # Пример пути: "anime/photo_1@...jpg" или "real/photo_..."
             first_pic = pictures[0]
-            if first_pic.startswith('anime\\'):
+            if first_pic.startswith('anime/'):
                 pic_type = database.ImageType.ANIME.value
-            elif first_pic.startswith('real\\'):
+            elif first_pic.startswith('real/'):
                 pic_type = database.ImageType.REAL.value
             else:
                 logging.warning(f"Не удалось определить тип для даты {date_str} по пути {first_pic}, пропускаем.")
@@ -247,11 +253,11 @@ def load_from_import_json():
         # Обрабатываем фото
         for pic_rel_path in pictures:
             # Определяем тип из пути (на всякий случай)
-            if pic_rel_path.startswith('anime\\'):
+            if pic_rel_path.startswith('anime/'):
                 pic_type = database.ImageType.ANIME.value
                 target_dir = TARGET_ANIME_DIR
                 src_dir = NEW_ANIME_DIR
-            elif pic_rel_path.startswith('real\\'):
+            elif pic_rel_path.startswith('real/'):
                 pic_type = database.ImageType.REAL.value
                 target_dir = TARGET_REAL_DIR
                 src_dir = NEW_REAL_DIR
@@ -260,6 +266,8 @@ def load_from_import_json():
                 errors += 1
                 continue
 
+            # Нормализуем путь: заменяем обратные слеши на прямые
+            pic_rel_path = pic_rel_path.replace('\\', '/')
             filename = Path(pic_rel_path).name
             src_path = src_dir / filename
             if not src_path.exists():
@@ -306,6 +314,8 @@ def load_from_import_json():
                 logging.warning(f"Не удалось установить have_video для поста {post_id}")
 
             for video_rel_path in videos:
+                # Нормализуем путь: заменяем обратные слеши на прямые
+                video_rel_path = video_rel_path.replace('\\', '/')
                 # Видео могут быть в папке videos или прямо в new/videos
                 filename = Path(video_rel_path).name
                 src_path = NEW_VIDEOS_DIR / filename

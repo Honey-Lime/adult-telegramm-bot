@@ -856,18 +856,14 @@ class BotController:
 				try:
 					result = image_loader.load_from_import_json()
 					elapsed = time.time() - start_time
+					photos_added, videos_added, errors_count = result
 					report_lines = [
 						f"✅ Загрузка завершена.",
-						f"Добавлено аниме: {result.get('anime', 0)}",
-						f"Добавлено фото: {result.get('real', 0)}",
-						f"Добавлено видео: {result.get('videos', 0)}",
-						f"Ошибок: {len(result.get('errors', []))}",
+						f"Добавлено фото: {photos_added}",
+						f"Добавлено видео: {videos_added}",
+						f"Ошибок: {errors_count}",
 						f"Время выполнения: {elapsed:.2f} сек."
 					]
-					if result.get('errors'):
-						report_lines.append("\nОшибки:")
-						for err in result['errors'][:5]:  # показываем первые 5 ошибок
-							report_lines.append(f"  - {err}")
 					report = "\n".join(report_lines)
 				except Exception as e:
 					report = f"❌ Ошибка при загрузке: {e}"
