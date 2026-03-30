@@ -63,8 +63,6 @@ class BotController:
 		self.last_video_data: Dict[int, dict] = {}			   # chat_id -> данные последнего видео (id, path, ...)
 		self.last_video_message_id: Dict[int, int] = {}		  # chat_id -> message_id последнего видео
 		self.sending_video: Dict[int, bool] = {}				# chat_id -> флаг, выполняется ли сейчас отправка видео
-		self.last_video_send_time: Dict[int, float] = {}		# chat_id -> время последней отправки видео (для rate limit)
-		self.last_video_type: Dict[int, str] = {}				# chat_id -> тип последнего запрошенного видео ('top25', 'good', 'free')
 
 		# Состояние ожидания пользовательского сообщения для рассылки
 		self.waiting_for_custom_message: Dict[int, bool] = {}  # chat_id -> bool (ожидает ли админ ввода сообщения)
@@ -744,12 +742,6 @@ class BotController:
 				await self.delete_current(chat_id, message_id)
 				await self.send_video(chat_id, 'free')
 
-			elif callback.data.startswith("video_retry_"):
-				# Повтор запроса видео после 30-секундного ожидания
-				video_type = callback.data.split('_')[2]
-				await self.delete_current(chat_id, message_id)
-				await self.send_video(chat_id, video_type)
-
 			elif callback.data == "video_like":
 				# Лайк на видео
 				if chat_id not in self.last_video_data:
@@ -1301,31 +1293,6 @@ class BotController:
 		self.sending_video[chat_id] = True
 
 		try:
-			# +++ Rate limit: не чаще 1 раза в секунду +++
-			now = asyncio.get_event_loop().time()
-			last_time = self.last_video_send_time.get(chat_id, 0)
-			if now - last_time < 1.0:
-				await self.send_and_track(
-					chat_id,
-					text="⏳ Слишком часто, подождите секунду",
-					track=False
-				)
-				return
-
-			# Сохраняем тип видео для возможного повтора
-			self.last_video_type[chat_id] = video_type
-
-			# Проверяем, можно ли смотреть видео (ограничение 30 секунд)
-			if not database.can_watch_video(chat_id):
-				keyboard = keyboards.get_video_retry_keyboard(video_type)
-				await self.send_and_track(
-					chat_id,
-					text="⏳ Подождите 30 секунд перед просмотром следующего видео.",
-					reply_markup=keyboard,
-					track=False
-				)
-				return
-
 			# Получаем видео в зависимости от типа
 			video_path = None
 			video = None
@@ -1370,7 +1337,6 @@ class BotController:
 			)
 
 			self.last_video_message_id[chat_id] = sent.message_id
-			self.last_video_send_time[chat_id] = now
 
 		finally:
 			self.sending_video[chat_id] = False
