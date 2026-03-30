@@ -750,6 +750,15 @@ class BotController:
 				if success:
 					await self.remove_keyboard(chat_id, message_id)
 					await callback.answer("✅ +5 монет")
+					# Возвращаем меню выбора видео
+					user = database.get_user(chat_id)
+					coins = user.get('coins', 0) if user else 0
+					keyboard = keyboards.get_video_menu_keyboard()
+					await self.send_and_track(
+						chat_id,
+						text=f"Баланс: {coins}🪙\nВыберите видео:",
+						reply_markup=keyboard,
+					)
 				else:
 					await callback.answer("❌ Ошибка")
 
@@ -764,6 +773,15 @@ class BotController:
 				if success:
 					await self.remove_keyboard(chat_id, message_id)
 					await callback.answer("✅ +5 монет")
+					# Возвращаем меню выбора видео
+					user = database.get_user(chat_id)
+					coins = user.get('coins', 0) if user else 0
+					keyboard = keyboards.get_video_menu_keyboard()
+					await self.send_and_track(
+						chat_id,
+						text=f"Баланс: {coins}🪙\nВыберите видео:",
+						reply_markup=keyboard,
+					)
 				else:
 					await callback.answer("❌ Ошибка")
 
