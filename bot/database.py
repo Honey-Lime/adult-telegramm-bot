@@ -362,6 +362,20 @@ def init_db():
 			conn.commit()
 			logging.info("Promo links tables initialized")
 			
+			# Создание таблицы транзакций для хранения истории пополнений
+			cur.execute("""
+				CREATE TABLE IF NOT EXISTS transactions (
+					id SERIAL PRIMARY KEY,
+					user_id BIGINT NOT NULL,
+					amount INTEGER NOT NULL,
+					stars_paid INTEGER NOT NULL,
+					created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+				);
+				CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id);
+			""")
+			conn.commit()
+			logging.info("Transactions table initialized")
+			
 			# Исправление последовательности videos (если проблема с id)
 			fix_videos_sequence()
 			
@@ -1994,5 +2008,63 @@ def delete_promo_link(link_id: int) -> bool:
         logging.error(f"Error deleting promo link: {e}")
         conn.rollback()
         return False
+    finally:
+        return_connection(conn)
+
+
+def add_transaction(user_id: int, amount: int, stars_paid: int) -> bool:
+    """
+    Добавляет запись о транзакции пополнения баланса.
+    Возвращает True при успехе.
+    """
+    conn = get_connection()
+    if not conn:
+        logging.error(f"No connection available in add_transaction for user {user_id}")
+        return False
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO transactions (user_id, amount, stars_paid)
+                VALUES (%s, %s, %s)
+            """, (user_id, amount, stars_paid))
+            conn.commit()
+            logging.info(f"Transaction added: user {user_id}, {amount} coins, {stars_paid} stars")
+            return True
+    except Exception as e:
+        logging.error(f"Error adding transaction for user {user_id}: {e}")
+        conn.rollback()
+        return False
+    finally:
+        return_connection(conn)
+
+
+def get_user_transactions(user_id: int, limit: int = 10) -> list:
+    """
+    Возвращает последние транзакции пользователя.
+    """
+    conn = get_connection()
+    if not conn:
+        return []
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT amount, stars_paid, created_at
+                FROM transactions
+                WHERE user_id = %s
+                ORDER BY created_at DESC
+                LIMIT %s
+            """, (user_id, limit))
+            rows = cur.fetchall()
+            result = []
+            for row in rows:
+                result.append({
+                    'amount': row[0],
+                    'stars_paid': row[1],
+                    'created_at': row[2]
+                })
+            return result
+    except Exception as e:
+        logging.error(f"Error getting transactions for user {user_id}: {e}")
+        return []
     finally:
         return_connection(conn)

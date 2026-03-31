@@ -12,6 +12,7 @@ import os
 
 from aiogram import Bot, Dispatcher, Router, types
 from aiogram.filters.command import Command
+from aiogram.filters import F
 from aiogram.types import (
 	InlineKeyboardButton,
 	InlineKeyboardMarkup,
@@ -20,6 +21,7 @@ from aiogram.types import (
 	CallbackQuery,
 	Message,
 	WebAppInfo,
+	PreCheckoutQuery,
 )
 
 from config_reader import config
@@ -80,8 +82,11 @@ class BotController:
 	def _register_handlers(self) -> None:
 		self.router.message.register(self.cmd_start, Command("start"))
 		self.router.message.register(self.cmd_app, Command("app"))
+		self.router.message.register(self.cmd_donut, Command("donut"))
 		self.router.message.register(self.cmd_admin, Command("admin"))
 		self.router.message.register(self.handle_message)
+		self.router.pre_checkout_query.register(self.handle_pre_checkout_query)
+		self.router.message.register(self.handle_successful_payment, F.successful_payment)
 		self.router.callback_query.register(self.process_callback)
 
 
@@ -91,6 +96,7 @@ class BotController:
 		commands = [
 			BotCommand(command="start", description="Старт / Главное меню"),
 			BotCommand(command="app", description="Мини приложение(ТОП, Сохраненные)"),
+			BotCommand(command="donut", description="Пополнить баланс"),
 			BotCommand(command="admin", description="Админ-панель"),
 		]
 		await self.bot.set_my_commands(commands)
@@ -320,6 +326,23 @@ class BotController:
 		keyboard = keyboards.get_admin_panel_keyboard()
 		await self.send_and_track(chat_id, text="Админ-панель. Выберите действие:", reply_markup=keyboard)
 
+	async def cmd_donut(self, message: Message) -> None:
+		"""Обработчик команды /donut для пополнения баланса."""
+		# Обновляем профиль пользователя
+		await self._update_user_profile_from_message(message)
+		chat_id = message.chat.id
+		
+		# Получаем баланс пользователя
+		user = database.get_user(chat_id)
+		coins = user.get('coins', 0) if user else 0
+		
+		keyboard = keyboards.get_donate_keyboard()
+		await self.send_and_track(
+			chat_id,
+			text=f"💰 Ваш баланс: {coins}🪙\n\nВыберите тариф для пополнения баланса за Telegram Stars:",
+			reply_markup=keyboard
+		)
+
 	async def handle_message(self, message: Message) -> None:
 		"""
 		Обработчик текстовых сообщений (не команд).
@@ -439,6 +462,52 @@ class BotController:
 				await message.delete()
 			except:
 				pass
+
+	async def handle_pre_checkout_query(self, pre_checkout_query: PreCheckoutQuery) -> None:
+		"""Обработчик pre_checkout_query для подтверждения платежа."""
+		try:
+			await self.bot.answer_pre_checkout_query(
+				pre_checkout_query_id=pre_checkout_query.id,
+				ok=True
+			)
+			logging.info(f"Pre-checkout query approved for user {pre_checkout_query.from_user.id}")
+		except Exception as e:
+			logging.error(f"Error in pre_checkout_query: {e}")
+
+	async def handle_successful_payment(self, message: Message) -> None:
+		"""Обработчик successful_payment для зачисления монет после оплаты."""
+		chat_id = message.chat.id
+		try:
+			# Парсим payload для получения суммы пополнения
+			payload = message.successful_payment.invoice_payload
+			parts = payload.split('_')
+			if len(parts) >= 3 and parts[0] == 'donate':
+				amount = int(parts[1])
+				
+				# Получаем сумму в звездах из сообщения
+				stars_paid = message.successful_payment.total_amount
+				
+				# Начисляем монеты пользователю
+				database.add_coins(chat_id, amount)
+				
+				# Добавляем запись о транзакции
+				database.add_transaction(chat_id, amount, stars_paid)
+				
+				# Отправляем подтверждение
+				await self.send_and_track(
+					chat_id,
+					text=f"✅ Оплата прошла успешно!\n\nВаш баланс пополнен на {amount}🪙\nСписано: {stars_paid} ⭐",
+					track=False
+				)
+				
+				logging.info(f"Payment successful: user {chat_id}, {amount} coins, {stars_paid} stars")
+		except Exception as e:
+			logging.error(f"Error processing successful payment: {e}")
+			await self.send_and_track(
+				chat_id,
+				text="❌ Произошла ошибка при обработке платежа. Пожалуйста, обратитесь к администрации.",
+				track=False
+			)
 
 	async def show_moderation_image(self, chat_id: int, current_message_id: int = None):
 		if current_message_id:
@@ -728,6 +797,51 @@ class BotController:
 					chat_id,
 					text=f"🔗 Ваша реферальная ссылка:\n{link}\n\nПриглашайте друзей! За каждого нового пользователя вы получите 250 монет.",
 					track=False,
+				)
+
+			# --- Меню пополнения баланса ---
+			elif callback.data == "donate":
+				await self.delete_current(chat_id, message_id)
+				user = database.get_user(chat_id)
+				coins = user.get('coins', 0) if user else 0
+				keyboard = keyboards.get_donate_keyboard()
+				await self.send_and_track(
+					chat_id,
+					text=f"💰 Ваш баланс: {coins}🪙\n\nВыберите тариф для пополнения баланса за Telegram Stars:",
+					reply_markup=keyboard
+				)
+
+			# --- Обработка выбора тарифа для пополнения ---
+			elif callback.data.startswith("donate_"):
+				# Получаем сумму пополнения из callback_data
+				try:
+					amount = int(callback.data.split('_')[1])
+				except (IndexError, ValueError):
+					await callback.answer("Ошибка тарифа")
+					return
+
+				# Определяем стоимость в звездах
+				stars_map = {
+					100: 10,
+					500: 45,
+					1000: 90,
+					5000: 400
+				}
+				stars = stars_map.get(amount)
+				if not stars:
+					await callback.answer("Неверный тариф")
+					return
+
+				# Создаем инвойс для оплаты
+				await self.bot.send_invoice(
+					chat_id=chat_id,
+					title=f"Пополнение баланса на {amount}🪙",
+					description=f"Пополнение баланса бота на {amount} монет. После оплаты монеты будут зачислены на ваш баланс.",
+					payload=f"donate_{amount}_{chat_id}",
+					provider_token="",  # Для Telegram Stars не требуется
+					currency="XTR",  # Валюта Telegram Stars
+					prices=[types.LabeledPrice(label=f"{amount} 🪙", amount=stars)],
+					start_parameter="donate",
 				)
 
 			elif callback.data == "video_top25":

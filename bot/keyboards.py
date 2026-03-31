@@ -14,6 +14,7 @@ def get_main_menu_keyboard() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="🖼Аниме", callback_data="anime"),
          InlineKeyboardButton(text="🖼Фото", callback_data="real")],
         [InlineKeyboardButton(text="🎞Видео", callback_data="video")],
+        [InlineKeyboardButton(text="💰 Пополнить баланс", callback_data="donate")],
         [InlineKeyboardButton(text="🔗 Реферальная ссылка", callback_data="referral")]
     ])
 
@@ -173,4 +174,17 @@ def get_clear_folder_confirm_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="✅ Да, удалить все файлы", callback_data="admin_clear_import_folder_confirm"),
          InlineKeyboardButton(text="❌ Отмена", callback_data="admin_clear_import_folder_cancel")]
+    ])
+
+
+def get_donate_keyboard() -> InlineKeyboardMarkup:
+    """
+    Клавиатура пополнения баланса за Telegram Stars.
+    """
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="💎 100 🪙 - 10 ⭐", callback_data="donate_100")],
+        [InlineKeyboardButton(text="💎 500 🪙 - 45 ⭐", callback_data="donate_500")],
+        [InlineKeyboardButton(text="💎 1000 🪙 - 90 ⭐", callback_data="donate_1000")],
+        [InlineKeyboardButton(text="💎 5000 🪙 - 400 ⭐", callback_data="donate_5000")],
+        [InlineKeyboardButton(text="🔙 Назад", callback_data="menu")]
     ])
