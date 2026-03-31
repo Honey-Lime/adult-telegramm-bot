@@ -15,7 +15,8 @@ def get_main_menu_keyboard() -> InlineKeyboardMarkup:
          InlineKeyboardButton(text="🖼Фото", callback_data="real")],
         [InlineKeyboardButton(text="🎞Видео", callback_data="video")],
         [InlineKeyboardButton(text="💰 Пополнить баланс", callback_data="donate")],
-        [InlineKeyboardButton(text="🔗 Реферальная ссылка", callback_data="referral")]
+        [InlineKeyboardButton(text="🔗 Реферальная ссылка", callback_data="referral")],
+        [InlineKeyboardButton(text="🌐 Language / Язык", callback_data="language")]
     ])
 
 
@@ -186,5 +187,16 @@ def get_donate_keyboard() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="500 🪙 - 45 ⭐", callback_data="donate_500")],
         [InlineKeyboardButton(text="1000 🪙 - 90 ⭐", callback_data="donate_1000")],
         [InlineKeyboardButton(text="5000 🪙 - 400 ⭐", callback_data="donate_5000")],
+        [InlineKeyboardButton(text="🔙 Назад", callback_data="menu")]
+    ])
+
+
+def get_language_keyboard() -> InlineKeyboardMarkup:
+    """
+    Клавиатура выбора языка.
+    """
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🇷🇺 Русский", callback_data="lang_ru"),
+         InlineKeyboardButton(text="🇺🇸 English", callback_data="lang_en")],
         [InlineKeyboardButton(text="🔙 Назад", callback_data="menu")]
     ])

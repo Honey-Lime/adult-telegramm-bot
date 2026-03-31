@@ -305,12 +305,13 @@ def init_db():
 				);
 				CREATE INDEX IF NOT EXISTS idx_message_history_chat_id ON message_history(chat_id);
 			""")
-			# Добавление столбцов first_name, last_name, username в таблицу users, если их нет
+			# Добавление столбцов first_name, last_name, username, language в таблицу users, если их нет
 			cur.execute("""
 				ALTER TABLE users
 				ADD COLUMN IF NOT EXISTS first_name TEXT,
 				ADD COLUMN IF NOT EXISTS last_name TEXT,
-				ADD COLUMN IF NOT EXISTS username TEXT;
+				ADD COLUMN IF NOT EXISTS username TEXT,
+				ADD COLUMN IF NOT EXISTS language TEXT DEFAULT 'ru';
 			""")
 			# Добавление столбца have_video в таблицу posts, если его нет
 			cur.execute("""
@@ -599,7 +600,7 @@ def get_user(user_id, referrer_id=None):
 		return_connection(conn)
 
 
-def get_or_create_user(user_id, referrer_id=None):
+def get_or_create_user(user_id, referrer_id=None, language='ru'):
 	"""
 	Получает пользователя по id. Если не существует – создаёт.
 	Если передан referrer_id и реферер существует, начисляет ему 250 монет.
@@ -629,19 +630,19 @@ def get_or_create_user(user_id, referrer_id=None):
 				else:
 					logging.warning(f"Referrer {referrer_id} not found, skipping bonus")
 
-			# Вставка нового пользователя
+			# Вставка нового пользователя с языком
 			if valid_referrer:
 				cur.execute("""
-					INSERT INTO users (id, referrer_id, coins)
-					VALUES (%s, %s, 0)
+					INSERT INTO users (id, referrer_id, coins, language)
+					VALUES (%s, %s, 0, %s)
 					RETURNING id
-				""", (user_id, referrer_id))
+				""", (user_id, referrer_id, language))
 			else:
 				cur.execute("""
-					INSERT INTO users (id, coins)
-					VALUES (%s, 0)
+					INSERT INTO users (id, coins, language)
+					VALUES (%s, 0, %s)
 					RETURNING id
-				""", (user_id,))
+				""", (user_id, language))
 
 			inserted = cur.fetchone()
 			if inserted:
@@ -1343,9 +1344,9 @@ def cleanup_by_json(json_path):
     return deleted, errors
 
 
-def update_user_profile(user_id, first_name=None, last_name=None, username=None):
+def update_user_profile(user_id, first_name=None, last_name=None, username=None, language_code=None):
 	"""
-	Обновляет профиль пользователя (имя, фамилия, юзернейм) в базе данных.
+	Обновляет профиль пользователя (имя, фамилия, юзернейм, язык) в базе данных.
 	Если поля не переданы, оставляет существующие значения.
 	Возвращает True при успехе, False при ошибке.
 	"""
@@ -1367,6 +1368,11 @@ def update_user_profile(user_id, first_name=None, last_name=None, username=None)
 			if username is not None:
 				updates.append("username = %s")
 				params.append(username)
+			if language_code is not None:
+				# Определяем язык из language_code Telegram
+				language = 'ru' if language_code.startswith('ru') else 'en'
+				updates.append("language = %s")
+				params.append(language)
 			if not updates:
 				# Нет полей для обновления
 				return True
@@ -2059,6 +2065,45 @@ def add_transaction(user_id: int, amount: int, stars_paid: int) -> bool:
             return True
     except Exception as e:
         logging.error(f"Error adding transaction for user {user_id}: {e}")
+        conn.rollback()
+        return False
+    finally:
+        return_connection(conn)
+
+
+def get_user_language(user_id: int) -> str:
+    """
+    Возвращает язык пользователя (ru/en).
+    """
+    conn = get_connection()
+    if not conn:
+        return 'ru'
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT language FROM users WHERE id = %s", (user_id,))
+            row = cur.fetchone()
+            return row[0] if row and row[0] else 'ru'
+    except Exception as e:
+        logging.error(f"Error getting user language: {e}")
+        return 'ru'
+    finally:
+        return_connection(conn)
+
+
+def set_user_language(user_id: int, language: str) -> bool:
+    """
+    Устанавливает язык пользователя.
+    """
+    conn = get_connection()
+    if not conn:
+        return False
+    try:
+        with conn.cursor() as cur:
+            cur.execute("UPDATE users SET language = %s WHERE id = %s", (language, user_id))
+            conn.commit()
+            return cur.rowcount > 0
+    except Exception as e:
+        logging.error(f"Error setting user language: {e}")
         conn.rollback()
         return False
     finally:

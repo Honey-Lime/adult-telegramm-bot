@@ -187,7 +187,8 @@ class BotController:
 		first_name = user.first_name
 		last_name = user.last_name
 		username = user.username
-		database.update_user_profile(chat_id, first_name, last_name, username)
+		language_code = user.language_code
+		database.update_user_profile(chat_id, first_name, last_name, username, language_code)
 
 	async def _update_user_profile_from_callback(self, callback: CallbackQuery) -> None:
 		"""
@@ -200,7 +201,8 @@ class BotController:
 		first_name = user.first_name
 		last_name = user.last_name
 		username = user.username
-		database.update_user_profile(chat_id, first_name, last_name, username)
+		language_code = user.language_code
+		database.update_user_profile(chat_id, first_name, last_name, username, language_code)
 
 	async def edit_message_to_save_button(self, chat_id: int, message_id: int, image_id: int) -> None:
 		keyboard = keyboards.get_save_button_keyboard(image_id)
@@ -269,8 +271,17 @@ class BotController:
 				database.track_promo_link_click(promo_link['id'], chat_id)
 				logging.info(f"Переход по промо-ссылке: {promo_code}, пользователь: {chat_id}")
 
+		# Определяем язык пользователя из данных Telegram
+		user_lang = 'ru'  # язык по умолчанию
+		if message.from_user and message.from_user.language_code:
+			# Если язык начинается с 'ru', используем русский, иначе английский
+			if message.from_user.language_code.startswith('ru'):
+				user_lang = 'ru'
+			else:
+				user_lang = 'en'
+
 		# Получаем пользователя и флаг создания
-		user, created = database.get_or_create_user(chat_id, referrer_id)
+		user, created = database.get_or_create_user(chat_id, referrer_id, user_lang)
 
 		if user is None:
 			# Ошибка при получении/создании пользователя
@@ -1365,6 +1376,29 @@ class BotController:
 				await self.delete_current(chat_id, message_id)
 				keyboard = keyboards.get_admin_panel_keyboard()
 				await self.send_and_track(chat_id, text="Админ-панель. Выберите действие:", reply_markup=keyboard, track=False)
+
+			# --- Выбор языка ---
+			elif callback.data == "language":
+				await self.delete_current(chat_id, message_id)
+				keyboard = keyboards.get_language_keyboard()
+				current_lang = database.get_user_language(chat_id)
+				lang_name = "Русский" if current_lang == "ru" else "English"
+				await self.send_and_track(
+					chat_id,
+					text=f"🌐 Выберите язык / Select language:\n\nТекущий язык / Current language: {lang_name}",
+					reply_markup=keyboard,
+					track=False
+				)
+
+			elif callback.data == "lang_ru":
+				database.set_user_language(chat_id, "ru")
+				await self.delete_current(chat_id, message_id)
+				await self.send_menu(chat_id)
+
+			elif callback.data == "lang_en":
+				database.set_user_language(chat_id, "en")
+				await self.delete_current(chat_id, message_id)
+				await self.send_menu(chat_id)
 		finally:
 			self.user_processing.pop(chat_id, None)
 
