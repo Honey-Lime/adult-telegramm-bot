@@ -10,9 +10,8 @@ import asyncio
 from typing import Dict, Optional, List
 import os
 
-from aiogram import Bot, Dispatcher, Router, types
+from aiogram import Bot, Dispatcher, Router, types, F
 from aiogram.filters.command import Command
-from aiogram.filters import F
 from aiogram.types import (
 	InlineKeyboardButton,
 	InlineKeyboardMarkup,
