@@ -182,9 +182,9 @@ def get_donate_keyboard() -> InlineKeyboardMarkup:
     Клавиатура пополнения баланса за Telegram Stars.
     """
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="💎 100 🪙 - 10 ⭐", callback_data="donate_100")],
-        [InlineKeyboardButton(text="💎 500 🪙 - 45 ⭐", callback_data="donate_500")],
-        [InlineKeyboardButton(text="💎 1000 🪙 - 90 ⭐", callback_data="donate_1000")],
-        [InlineKeyboardButton(text="💎 5000 🪙 - 400 ⭐", callback_data="donate_5000")],
+        [InlineKeyboardButton(text="100 🪙 - 10 ⭐", callback_data="donate_100")],
+        [InlineKeyboardButton(text="500 🪙 - 45 ⭐", callback_data="donate_500")],
+        [InlineKeyboardButton(text="1000 🪙 - 90 ⭐", callback_data="donate_1000")],
+        [InlineKeyboardButton(text="5000 🪙 - 400 ⭐", callback_data="donate_5000")],
         [InlineKeyboardButton(text="🔙 Назад", callback_data="menu")]
     ])

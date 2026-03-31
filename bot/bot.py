@@ -845,11 +845,47 @@ class BotController:
 
 			elif callback.data == "video_top25":
 				await self.delete_current(chat_id, message_id)
-				await self.send_video(chat_id, 'top25')
+				# Проверка баланса
+				user = database.get_user(chat_id)
+				coins = user.get('coins', 0) if user else 0
+				if coins < 500:
+					await self.send_and_track(
+						chat_id,
+						text=f"❌ Недостаточно средств. Для просмотра этого видео нужно 500🪙.\nВаш баланс: {coins}🪙\n\nПополните баланс через /donut",
+						track=False
+					)
+					return
+				# Списание средств
+				if database.spend_coins(chat_id, 500):
+					await self.send_video(chat_id, 'top25')
+				else:
+					await self.send_and_track(
+						chat_id,
+						text="❌ Ошибка при списании средств. Попробуйте позже.",
+						track=False
+					)
 
 			elif callback.data == "video_good":
 				await self.delete_current(chat_id, message_id)
-				await self.send_video(chat_id, 'good')
+				# Проверка баланса
+				user = database.get_user(chat_id)
+				coins = user.get('coins', 0) if user else 0
+				if coins < 200:
+					await self.send_and_track(
+						chat_id,
+						text=f"❌ Недостаточно средств. Для просмотра этого видео нужно 200🪙.\nВаш баланс: {coins}🪙\n\nПополните баланс через /donut",
+						track=False
+					)
+					return
+				# Списание средств
+				if database.spend_coins(chat_id, 200):
+					await self.send_video(chat_id, 'good')
+				else:
+					await self.send_and_track(
+						chat_id,
+						text="❌ Ошибка при списании средств. Попробуйте позже.",
+						track=False
+					)
 
 			elif callback.data == "video_free":
 				await self.delete_current(chat_id, message_id)

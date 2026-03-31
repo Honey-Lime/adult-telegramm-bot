@@ -1252,6 +1252,33 @@ def add_coins(user_id, amount):
 		return_connection(conn)
 
 
+def spend_coins(user_id, amount):
+	"""
+	Списывает указанное количество монет у пользователя.
+	Возвращает True при успехе (если монет достаточно), False при недостатке средств или ошибке.
+	"""
+	conn = get_connection()
+	if not conn:
+		logging.error(f"No connection available in spend_coins for user {user_id}")
+		return False
+	try:
+		with conn.cursor() as cur:
+			cur.execute("UPDATE users SET coins = coins - %s WHERE id = %s AND coins >= %s", (amount, user_id, amount))
+			if cur.rowcount == 0:
+				logging.debug(f"User {user_id} not found or insufficient coins (need {amount})")
+				conn.rollback()
+				return False
+			conn.commit()
+			logging.debug(f"Spent {amount} coins from user {user_id}")
+			return True
+	except Exception as e:
+		logging.error(f"Error spending coins from user {user_id}: {e}")
+		conn.rollback()
+		return False
+	finally:
+		return_connection(conn)
+
+
 def cleanup_by_json(json_path):
     """
     Читает JSON-файл со списком имён файлов, находит соответствующие записи в таблице pictures,
