@@ -6,7 +6,7 @@
 LOCALES = {
     'ru': {
         # Главное меню
-        'main_menu_text': "👋Здесь вы можете выбрать картинки(Аниме, Фото) или видео. \n\n👉В miniapp (/app) вы можете увидеть свои сохраненные картинки и ТОП25.",
+        'main_menu_text': "👋Здесь вы можете выбрать картинки(Аниме, Фото) или видео. \n\n👉В miniapp (/app) вы можете увидеть свои сохраненные картинки, видео и ТОП25.",
         'btn_anime': "🖼Аниме",
         'btn_real': "🖼Фото",
         'btn_video': "🎞Видео",
@@ -175,7 +175,7 @@ LOCALES = {
     },
     'en': {
         # Главное меню
-        'main_menu_text': "👋 Here you can choose pictures (Anime, Photo) or videos.\n\n👉 In miniapp (/app) you can see your saved pictures and TOP25.",
+        'main_menu_text': "👋 Here you can choose pictures (Anime, Photo) or videos.\n\n👉 In miniapp (/app) you can see your saved pictures, videos and TOP25.",
         'btn_anime': "🖼 Anime",
         'btn_real': "🖼 Photo",
         'btn_video': "🎞 Video",

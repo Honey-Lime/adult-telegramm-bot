@@ -169,7 +169,6 @@
       <button id="topAnimeBtn">Топ аниме</button>
       <button id="topRealBtn">Топ фото</button>
       <button id="savedBtn">Сохраненные</button>
-      <button id="videosBtn">🎬 Видео</button>
     </div>
     <div class="menu" id="sortButtons" style="display: none">
       <button id="sortByRatingBtn">⭐ По оценкам</button>
@@ -213,7 +212,6 @@
       const topAnimeBtn = document.getElementById("topAnimeBtn");
       const topRealBtn = document.getElementById("topRealBtn");
       const savedBtn = document.getElementById("savedBtn");
-      const videosBtn = document.getElementById("videosBtn");
       const filterPhotoBtn = document.getElementById("filterPhotoBtn");
       const filterVideoBtn = document.getElementById("filterVideoBtn");
 
@@ -266,9 +264,11 @@
               : `/images/${img.type === 0 ? "anime" : "real"}/${img.path}`;
 
             if (isVideo) {
+              // URL для превью видео (первый кадр)
+              const thumbnailUrl = `/api/video_thumbnail?video_path=${encodeURIComponent(img.path)}`;
               return `
                 <div class="card video-card" onclick="openVideoModal('${mediaUrl}', '${typeText}', ${img.id})">
-                  <video src="${mediaUrl}" poster="${mediaUrl}#t=0.1" alt="Video ${img.id}" loading="lazy" style="width: 100%; height: 300px; object-fit: cover;" preload="metadata"></video>
+                  <video src="${mediaUrl}" poster="${thumbnailUrl}" alt="Video ${img.id}" loading="lazy" style="width: 100%; height: 300px; object-fit: cover;" preload="metadata"></video>
                   <div class="info">
                     <div>❤️ ${img.likes} | 💔 ${img.dislikes}</div>
                     <div class="value">⭐ ${img.value}</div>
@@ -317,17 +317,6 @@
         updateSortButtons();
         updateFilterButtons();
         loadSaved();
-      });
-
-      videosBtn.addEventListener("click", () => {
-        if (!userId) {
-          gallery.innerHTML =
-            '<div class="loading">Ошибка: не удалось определить пользователя</div>';
-          return;
-        }
-        document.getElementById("sortButtons").style.display = "none";
-        document.getElementById("filterButtons").style.display = "none";
-        loadImages(`/api/liked_videos?user_id=${userId}`);
       });
 
       // Обработчики кнопок сортировки

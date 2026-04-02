@@ -11,6 +11,9 @@ from functools import lru_cache, wraps
 from dotenv import load_dotenv
 import sys
 from pathlib import Path
+import subprocess
+import tempfile
+import hashlib
 
 # Добавляем корень проекта в путь для импорта
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -22,6 +25,30 @@ app = FastAPI()
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Проверка наличия ffmpeg при старте
+def check_ffmpeg():
+    """Проверяет наличие ffmpeg в системе."""
+    try:
+        result = subprocess.run(["ffmpeg", "-version"], capture_output=True, text=True, timeout=5)
+        if result.returncode == 0:
+            logger.info("ffmpeg найден: " + result.stdout.split('\n')[0])
+            return True
+        else:
+            logger.warning("ffmpeg не найден. Превью видео не будут генерироваться.")
+            return False
+    except FileNotFoundError:
+        logger.warning("ffmpeg не найден в PATH. Превью видео не будут генерироваться.")
+        logger.warning("Установите ffmpeg: https://ffmpeg.org/download.html")
+        return False
+    except Exception as e:
+        logger.warning(f"Ошибка проверки ffmpeg: {e}")
+        return False
+
+@app.on_event("startup")
+async def startup_event():
+    """Проверка ffmpeg при запуске приложения."""
+    check_ffmpeg()
 
 # Обработчик ошибок валидации
 @app.exception_handler(RequestValidationError)
@@ -234,3 +261,75 @@ async def save_video(user_id: int, video_id: int):
 @app.get("/app")
 async def serve_app():
 	return FileResponse("static/index.html")
+
+@app.get("/api/video_thumbnail")
+async def get_video_thumbnail(video_path: str = Query(...)):
+	"""
+	Генерирует превью (первый кадр) для видео.
+	Возвращает JPEG изображение.
+	"""
+	logger.info(f"get_video_thumbnail called with path={video_path}")
+	
+	# Полный путь к видео
+	video_full_path = os.path.join("../bot/images/videos", video_path)
+	
+	if not os.path.isfile(video_full_path):
+		logger.error(f"Video file not found: {video_full_path}")
+		raise HTTPException(status_code=404, detail="Video file not found")
+	
+	# Генерируем уникальное имя для превью на основе пути к видео
+	cache_key = hashlib.md5(video_path.encode()).hexdigest()
+	thumbnail_dir = "../bot/images/video_thumbnails"
+	os.makedirs(thumbnail_dir, exist_ok=True)
+	thumbnail_path = os.path.join(thumbnail_dir, f"{cache_key}.jpg")
+	
+	# Если превью уже есть в кэше, возвращаем его
+	if os.path.isfile(thumbnail_path):
+		logger.info(f"Returning cached thumbnail: {thumbnail_path}")
+		return FileResponse(thumbnail_path, media_type="image/jpeg")
+	
+	# Генерируем превью с помощью ffmpeg
+	try:
+		# Создаем временный файл для превью
+		temp_fd, temp_path = tempfile.mkstemp(suffix=".jpg")
+		os.close(temp_fd)
+		
+		# Команда ffmpeg для создания скриншота первого кадра
+		cmd = [
+			"ffmpeg",
+			"-i", video_full_path,
+			"-vf", "select=eq(n\\,0)",
+			"-vframes", "1",
+			"-q:v", "2",
+			temp_path,
+			"-y"  # Перезаписать если существует
+		]
+		
+		logger.info(f"Running ffmpeg: {' '.join(cmd)}")
+		result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+		
+		if result.returncode != 0:
+			logger.error(f"ffmpeg error: {result.stderr}")
+			raise HTTPException(status_code=500, detail="Failed to generate thumbnail")
+		
+		# Проверяем, что файл создан
+		if not os.path.isfile(temp_path) or os.path.getsize(temp_path) == 0:
+			logger.error(f"Thumbnail file not created or empty: {temp_path}")
+			raise HTTPException(status_code=500, detail="Failed to generate thumbnail")
+		
+		# Копируем превью в кэш
+		import shutil
+		shutil.copy2(temp_path, thumbnail_path)
+		
+		# Удаляем временный файл
+		os.remove(temp_path)
+		
+		logger.info(f"Thumbnail generated: {thumbnail_path}")
+		return FileResponse(thumbnail_path, media_type="image/jpeg")
+		
+	except subprocess.TimeoutExpired:
+		logger.error("ffmpeg timeout")
+		raise HTTPException(status_code=500, detail="Thumbnail generation timeout")
+	except Exception as e:
+		logger.error(f"Error generating thumbnail: {e}")
+		raise HTTPException(status_code=500, detail=str(e))
