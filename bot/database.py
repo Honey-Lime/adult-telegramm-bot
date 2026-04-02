@@ -1762,6 +1762,7 @@ def video_save(user_id, video_id):
     """
     conn = get_connection()
     if not conn:
+        logging.error(f"video_save: failed to get connection, user_id={user_id}, video_id={video_id}")
         return False
     try:
         with conn.cursor() as cur:
@@ -1769,8 +1770,10 @@ def video_save(user_id, video_id):
             cur.execute("SELECT saved_videos FROM users WHERE id = %s", (user_id,))
             row = cur.fetchone()
             saved_videos = row['saved_videos'] if row and row['saved_videos'] else []
+            logging.info(f"video_save: user_id={user_id}, video_id={video_id}, saved_videos={saved_videos}, checking_duplicate={video_id in saved_videos}")
             if video_id in saved_videos:
                 # Видео уже сохранено
+                logging.warning(f"video_save: video already saved, user_id={user_id}, video_id={video_id}")
                 return False
             
             # Проверяем, есть ли уже видео в liked_videos
@@ -1778,15 +1781,27 @@ def video_save(user_id, video_id):
             row = cur.fetchone()
             liked_videos = row['liked_videos'] if row and row['liked_videos'] else []
             already_liked = video_id in liked_videos
+            logging.info(f"video_save: user_id={user_id}, video_id={video_id}, liked_videos={liked_videos}, already_liked={already_liked}")
             
-            # Проверяем баланс и списываем 50 монет, добавляем в saved_videos и liked_videos
+            # Проверяем баланс перед операцией
+            cur.execute("SELECT coins FROM users WHERE id = %s", (user_id,))
+            row = cur.fetchone()
+            coins = row['coins'] if row else 0
+            logging.info(f"video_save: user_id={user_id}, coins={coins}")
+            
+            if coins < 50:
+                # Недостаточно монет
+                logging.warning(f"video_save: insufficient coins, user_id={user_id}, coins={coins}, video_id={video_id}")
+                return False
+            
+            # Списываем 50 монет, добавляем в saved_videos и liked_videos
             if already_liked:
                 # Видео уже лайкнуто, добавляем только в saved_videos
                 cur.execute("""
                     UPDATE users
                     SET saved_videos = array_append(coalesce(saved_videos, ARRAY[]::INTEGER[]), %s),
                         coins = coins - 50
-                    WHERE id = %s AND coins >= 50
+                    WHERE id = %s
                     RETURNING coins
                 """, (video_id, user_id))
             else:
@@ -1796,11 +1811,14 @@ def video_save(user_id, video_id):
                     SET saved_videos = array_append(coalesce(saved_videos, ARRAY[]::INTEGER[]), %s),
                         liked_videos = array_append(coalesce(liked_videos, ARRAY[]::INTEGER[]), %s),
                         coins = coins - 50
-                    WHERE id = %s AND coins >= 50
+                    WHERE id = %s
                     RETURNING coins
                 """, (video_id, video_id, user_id))
             
+            logging.info(f"video_save: UPDATE rowcount={cur.rowcount}, user_id={user_id}, video_id={video_id}")
             if cur.rowcount == 0:
+                # Это не должно произойти, но на всякий случай
+                logging.error(f"video_save: UPDATE failed (rowcount=0), user_id={user_id}, video_id={video_id}, already_liked={already_liked}")
                 return False
             
             # Увеличиваем статистику видео
@@ -1824,7 +1842,7 @@ def video_save(user_id, video_id):
             conn.commit()
             return True
     except Exception as e:
-        logging.error(f"Error in video_save: {e}, user_id={user_id}, video_id={video_id}")
+        logging.error(f"Error in video_save: {e}, user_id={user_id}, video_id={video_id}", exc_info=True)
         conn.rollback()
         return False
     finally:
