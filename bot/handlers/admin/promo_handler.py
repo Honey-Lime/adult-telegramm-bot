@@ -149,64 +149,6 @@ async def handle_promo_delete(controller, chat_id: int, message_id: int, lang: s
         )
 
 
-async def handle_promo_delete_by_number(controller, chat_id: int, message_text: str, lang: str):
-    """
-    Удаление промо-ссылки по номеру.
-    
-    Args:
-        controller: Экземпляр BotController
-        chat_id: ID чата пользователя
-        message_text: Текст сообщения с номером
-        lang: Язык пользователя
-    """
-    if not message_text or not message_text.isdigit():
-        await controller.send_and_track(
-            chat_id,
-            text=f"❌ Неверный номер. Введите число от 1 до {len(database.get_all_promo_links())}.",
-            track=False
-        )
-        return
-    
-    link_number = int(message_text)
-    promo_links = database.get_all_promo_links()
-    
-    if link_number < 1 or link_number > len(promo_links):
-        await controller.send_and_track(
-            chat_id,
-            text=f"❌ Неверный номер. Введите число от 1 до {len(promo_links)}.",
-            track=False
-        )
-        return
-    
-    # Удаление ссылки
-    link_to_delete = promo_links[link_number - 1]
-    success = database.delete_promo_link(link_to_delete['id'])
-    
-    if success:
-        await controller.send_and_track(
-            chat_id,
-            text=f"🗑 Ссылка \"{link_to_delete['name']}\" удалена.",
-            track=False
-        )
-    else:
-        await controller.send_and_track(
-            chat_id,
-            text="❌ Ошибка при удалении ссылки.",
-            track=False
-        )
-    
-    # Сброс состояния и возврат меню
-    controller.waiting_for_promo_delete[chat_id] = False
-    
-    keyboard = get_promo_links_menu_keyboard(lang)
-    await controller.send_and_track(
-        chat_id,
-        text="🔗 Рекламные ссылки. Выберите действие:",
-        reply_markup=keyboard,
-        track=False
-    )
-
-
 async def handle_promo_menu_back(controller, chat_id: int, message_id: int, lang: str):
     """
     Возврат в меню промо-ссылок.

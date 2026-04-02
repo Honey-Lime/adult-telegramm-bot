@@ -754,7 +754,7 @@ def user_set_cycle(user_id, cycle):
 			conn.commit()
 		return True
 	except Exception as e:
-		logging.error(f"Error in delete_message_record: {e}, chat_id={chat_id}, message_id={message_id}")
+		logging.error(f"Error in user_set_cycle: {e}, user_id={user_id}, cycle={cycle}")
 		conn.rollback()
 		return False
 	finally:
@@ -784,7 +784,7 @@ def user_watched_image(user_id, image):
 			conn.commit()
 		return True
 	except Exception as e:
-		logging.error(f"Error in add_message_record: {e}, chat_id={chat_id}, message_id={message_id}")
+		logging.error(f"Error in user_watched_image: {e}, user_id={user_id}, image_id={image['id'] if image else None}")
 		conn.rollback()
 		return False
 	finally:
@@ -930,9 +930,9 @@ def clear_moderation(image_id):
             conn.commit()
             return True
     except Exception as e:
-    	logging.error(f"Error in add_picture_record: {e}, pic_type={pic_type}, post_id={post_id}, filename={filename}")
-    	conn.rollback()
-    	return False
+        logging.error(f"Error in clear_moderation: {e}, image_id={image_id}")
+        conn.rollback()
+        return False
     finally:
         return_connection(conn)
 
@@ -984,7 +984,7 @@ def get_not_real_type(image_id):
 			row = cur.fetchone()
 			return row[0] if row else None
 	except Exception as e:
-		logging.error(f"Error in get_oldest_message: {e}, chat_id={chat_id}")
+		logging.error(f"Error in get_not_real_type: {e}, image_id={image_id}")
 		return None
 	finally:
 		return_connection(conn)
@@ -1001,7 +1001,7 @@ def set_not_real_type(image_id, value):
 			conn.commit()
 			return True
 	except Exception as e:
-		logging.error(f"Error in user_set_cycle: {e}, user_id={user_id}, cycle={cycle}")
+		logging.error(f"Error in set_not_real_type: {e}, image_id={image_id}")
 		conn.rollback()
 		return False
 	finally:
@@ -1073,7 +1073,7 @@ def set_need_moderate(image_id):
 			conn.commit()
 		return True
 	except Exception as e:
-		logging.error(f"Error in user_watched_image: {e}, user_id={user_id}, image_id={image['id'] if image else None}")
+		logging.error(f"Error in set_need_moderate: {e}, image_id={image_id}")
 		conn.rollback()
 		return False
 	finally:
@@ -1098,7 +1098,7 @@ def add_saved_image(user_id, image_id):
 			conn.commit()
 			return True
 	except Exception as e:
-	    logging.error(f"Error in delete_image: {e}, image_id={image_id}")
+	    logging.error(f"Error in add_saved_image: {e}, user_id={user_id}, image_id={image_id}")
 	    conn.rollback()
 	    return False
 	finally:
@@ -1148,7 +1148,7 @@ def save(user_id, image_id):
 			conn.commit()
 			return True
 	except Exception as e:
-	    logging.error(f"Error in clear_moderation: {e}, image_id={image_id}")
+	    logging.error(f"Error in save: {e}, user_id={user_id}, image_id={image_id}")
 	    conn.rollback()
 	    return False
 	finally:

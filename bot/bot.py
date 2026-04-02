@@ -405,6 +405,7 @@ class BotController:
 		Используется для захвата пользовательского сообщения для рассылки.
 		"""
 		chat_id = message.chat.id
+		lang = self.get_user_lang(chat_id)
 		# Обновляем профиль пользователя
 		await self._update_user_profile_from_message(message)
 
@@ -533,6 +534,7 @@ class BotController:
 	async def handle_successful_payment(self, message: Message) -> None:
 		"""Обработчик successful_payment для зачисления монет после оплаты."""
 		chat_id = message.chat.id
+		lang = self.get_user_lang(chat_id)
 		try:
 			# Парсим payload для получения суммы пополнения
 			payload = message.successful_payment.invoice_payload
@@ -1019,6 +1021,7 @@ class BotController:
 		self.sending_video[chat_id] = True
 
 		try:
+			lang = self.get_user_lang(chat_id)
 			# Получаем видео в зависимости от типа
 			video_path = None
 			video = None
@@ -1033,10 +1036,6 @@ class BotController:
 				await self.send_and_track(chat_id, text=get_text(lang, 'no_videos'))
 				return
 
-			if not os.path.isfile(video_path):
-				logging.error(f"Файл видео не найден: {video_path}")
-				await self.send_and_track(chat_id, text=get_text(lang, 'video_file_missing'))
-				return
 			if not os.path.isfile(video_path):
 				logging.error(f"Файл видео не найден: {video_path}")
 				await self.send_and_track(chat_id, text=get_text(lang, 'video_file_missing'))
@@ -1066,75 +1065,6 @@ class BotController:
 
 		finally:
 			self.sending_video[chat_id] = False
-
-	# ==================== ХЕЛПЕРЫ ДЛЯ CALLBACK ====================
-
-	async def _handle_referral(self, chat_id: int) -> None:
-		"""Отправка реферальной ссылки пользователю"""
-		if not self.bot_username:
-			bot_info = await self.bot.me()
-			self.bot_username = bot_info.username
-		link = f"https://t.me/{self.bot_username}?start={chat_id}"
-		await self.send_and_track(
-			chat_id,
-			text=f"🔗 Ваша реферальная ссылка:\n{link}\n\nПриглашайте друзей! За каждого нового пользователя вы получите 250 монет.",
-			track=False,
-		)
-
-	async def _handle_donate_menu(self, chat_id: int, message_id: int, lang: str) -> None:
-		"""Показ меню пополнения баланса"""
-		await self.delete_current(chat_id, message_id)
-		user = database.get_user(chat_id)
-		coins = user.get('coins', 0) if user else 0
-		keyboard = keyboards.get_donate_keyboard(lang)
-		await self.send_and_track(
-			chat_id,
-			text=f"💰 Ваш баланс: {coins}🪙\n\nВыберите тариф для пополнения баланса за Telegram Stars:",
-			reply_markup=keyboard
-		)
-
-	async def _handle_donate_purchase(self, chat_id: int, callback_data: str, lang: str) -> None:
-		"""Обработка покупки монет"""
-		try:
-			amount = int(callback_data.split('_')[1])
-		except (IndexError, ValueError):
-			await self.send_and_track(chat_id, text="Ошибка тарифа", track=False)
-			return
-
-		stars_map = {100: 10, 500: 45, 1000: 90, 5000: 400}
-		stars = stars_map.get(amount)
-		if not stars:
-			await self.send_and_track(chat_id, text="Неверный тариф", track=False)
-			return
-
-		await self.bot.send_invoice(
-			chat_id=chat_id,
-			title=f"Пополнение баланса на {amount}🪙",
-			description=f"Пополнение баланса бота на {amount} монет. После оплаты монеты будут зачислены на ваш баланс.",
-			payload=f"donate_{amount}_{chat_id}",
-			provider_token="",
-			currency="XTR",
-			prices=[types.LabeledPrice(label=f"{amount} 🪙", amount=stars)],
-			start_parameter="donate",
-		)
-
-	async def _handle_language_menu(self, chat_id: int, message_id: int) -> None:
-		"""Показ меню выбора языка"""
-		await self.delete_current(chat_id, message_id)
-		current_lang = database.get_user_language(chat_id)
-		keyboard = keyboards.get_language_keyboard(current_lang)
-		lang_name = get_language_name(current_lang)
-		text = get_text(current_lang, 'language_menu_text', lang=lang_name)
-		await self.send_and_track(chat_id, text=text, reply_markup=keyboard, track=False)
-
-	async def _handle_language_select(self, chat_id: int, callback_data: str) -> None:
-		"""Обработка выбора языка"""
-		if callback_data == "lang_ru":
-			database.set_user_language(chat_id, "ru")
-		elif callback_data == "lang_en":
-			database.set_user_language(chat_id, "en")
-		await self.delete_current(chat_id, callback_data.message_id if hasattr(callback_data, 'message_id') else None)
-		await self.send_menu(chat_id)
 
 	# ==================== ЗАПУСК БОТА ====================
 
