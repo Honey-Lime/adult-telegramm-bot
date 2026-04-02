@@ -1769,7 +1769,7 @@ def video_save(user_id, video_id):
             # Проверяем, есть ли уже видео в saved_videos
             cur.execute("SELECT saved_videos FROM users WHERE id = %s", (user_id,))
             row = cur.fetchone()
-            saved_videos = row['saved_videos'] if row and row['saved_videos'] else []
+            saved_videos = row[0] if row and row[0] else []
             logging.info(f"video_save: user_id={user_id}, video_id={video_id}, saved_videos={saved_videos}, checking_duplicate={video_id in saved_videos}")
             if video_id in saved_videos:
                 # Видео уже сохранено
@@ -1779,14 +1779,14 @@ def video_save(user_id, video_id):
             # Проверяем, есть ли уже видео в liked_videos
             cur.execute("SELECT liked_videos FROM users WHERE id = %s", (user_id,))
             row = cur.fetchone()
-            liked_videos = row['liked_videos'] if row and row['liked_videos'] else []
+            liked_videos = row[0] if row and row[0] else []
             already_liked = video_id in liked_videos
             logging.info(f"video_save: user_id={user_id}, video_id={video_id}, liked_videos={liked_videos}, already_liked={already_liked}")
             
             # Проверяем баланс перед операцией
             cur.execute("SELECT coins FROM users WHERE id = %s", (user_id,))
             row = cur.fetchone()
-            coins = row['coins'] if row else 0
+            coins = row[0] if row else 0
             logging.info(f"video_save: user_id={user_id}, coins={coins}")
             
             if coins < 50:
