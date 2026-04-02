@@ -540,7 +540,11 @@
 
       // Обработчик нажатия на кнопку
       document.getElementById("fullscreenBtn").addEventListener("click", () => {
-        requestFullscreen();
+        if (tg.isFullscreen) {
+          exitFullscreen();
+        } else {
+          requestFullscreen();
+        }
       });
 
       // Отслеживание изменения состояния полноэкранного режима
