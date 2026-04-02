@@ -1149,6 +1149,9 @@ class BotController:
 
 
 def main() -> None:
+	# Инициализация БД (создание таблиц и миграции)
+	database.init_db()
+	
 	# Получаем ID администраторов из конфига
 	admin_ids_str = config.admin_ids.strip()
 	if admin_ids_str:

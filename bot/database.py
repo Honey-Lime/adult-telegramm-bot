@@ -641,19 +641,41 @@ def get_or_create_user(user_id, referrer_id=None, language='ru'):
 				else:
 					logging.warning(f"Referrer {referrer_id} not found, skipping bonus")
 
-			# Вставка нового пользователя с языком
-			if valid_referrer:
-				cur.execute("""
-					INSERT INTO users (id, referrer_id, coins, language)
-					VALUES (%s, %s, 0, %s)
-					RETURNING id
-				""", (user_id, referrer_id, language))
+			# Проверяем наличие колонки language
+			cur.execute("""
+				SELECT column_name 
+				FROM information_schema.columns 
+				WHERE table_name = 'users' AND column_name = 'language'
+			""")
+			has_language_column = cur.fetchone() is not None
+
+			# Вставка нового пользователя
+			if has_language_column:
+				if valid_referrer:
+					cur.execute("""
+						INSERT INTO users (id, referrer_id, coins, language)
+						VALUES (%s, %s, 0, %s)
+						RETURNING id
+					""", (user_id, referrer_id, language))
+				else:
+					cur.execute("""
+						INSERT INTO users (id, coins, language)
+						VALUES (%s, 0, %s)
+						RETURNING id
+					""", (user_id, language))
 			else:
-				cur.execute("""
-					INSERT INTO users (id, coins, language)
-					VALUES (%s, 0, %s)
-					RETURNING id
-				""", (user_id, language))
+				if valid_referrer:
+					cur.execute("""
+						INSERT INTO users (id, referrer_id, coins)
+						VALUES (%s, %s, 0)
+						RETURNING id
+					""", (user_id, referrer_id))
+				else:
+					cur.execute("""
+						INSERT INTO users (id, coins)
+						VALUES (%s, 0)
+						RETURNING id
+					""", (user_id,))
 
 			inserted = cur.fetchone()
 			if inserted:
@@ -1367,6 +1389,14 @@ def update_user_profile(user_id, first_name=None, last_name=None, username=None,
 		return False
 	try:
 		with conn.cursor() as cur:
+			# Проверяем наличие колонки language
+			cur.execute("""
+				SELECT column_name 
+				FROM information_schema.columns 
+				WHERE table_name = 'users' AND column_name = 'language'
+			""")
+			has_language_column = cur.fetchone() is not None
+			
 			# Строим динамический запрос на основе переданных данных
 			updates = []
 			params = []
@@ -1379,7 +1409,7 @@ def update_user_profile(user_id, first_name=None, last_name=None, username=None,
 			if username is not None:
 				updates.append("username = %s")
 				params.append(username)
-			if language_code is not None:
+			if language_code is not None and has_language_column:
 				# Определяем язык из language_code Telegram
 				language = 'ru' if language_code.startswith('ru') else 'en'
 				updates.append("language = %s")
@@ -2091,11 +2121,21 @@ def get_user_language(user_id: int) -> str:
         return 'ru'
     try:
         with conn.cursor() as cur:
+            # Проверяем наличие колонки language
+            cur.execute("""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = 'users' AND column_name = 'language'
+            """)
+            if not cur.fetchone():
+                # Колонки нет, возвращаем default
+                return 'ru'
+            
             cur.execute("SELECT language FROM users WHERE id = %s", (user_id,))
             row = cur.fetchone()
             return row[0] if row and row[0] else 'ru'
     except Exception as e:
-        logging.error(f"Error getting user language: {e}")
+        # Тихо возвращаем default при любой ошибке
         return 'ru'
     finally:
         return_connection(conn)
@@ -2110,6 +2150,17 @@ def set_user_language(user_id: int, language: str) -> bool:
         return False
     try:
         with conn.cursor() as cur:
+            # Проверяем наличие колонки language
+            cur.execute("""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = 'users' AND column_name = 'language'
+            """)
+            if not cur.fetchone():
+                # Колонки нет, миграция ещё не выполнена
+                logging.warning("language column not found, migration pending")
+                return False
+            
             cur.execute("UPDATE users SET language = %s WHERE id = %s", (language, user_id))
             conn.commit()
             return cur.rowcount > 0
