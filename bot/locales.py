@@ -35,6 +35,7 @@ LOCALES = {
         
         # Видео
         'video_caption': "Видео | {coins}🪙",
+        'btn_video_save': "Сохранить 50🪙",
         'btn_video_report': "⚠️ Жалоба",
         
         # Жалобы
@@ -203,6 +204,7 @@ LOCALES = {
         
         # Видео
         'video_caption': "Video | {coins}🪙",
+        'btn_video_save': "Save 50🪙",
         'btn_video_report': "⚠️ Report",
         
         # Жалобы

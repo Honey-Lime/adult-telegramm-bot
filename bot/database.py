@@ -1753,6 +1753,48 @@ def video_dislike(user_id, video_id):
         return_connection(conn)
 
 
+def video_save(user_id, video_id):
+    """
+    Сохранение видео: добавляет в saved_videos и liked_videos, списывает 50 монет,
+    увеличивает likes, total, value на 1.
+    Возвращает True при успехе, False при недостатке монет или ошибке.
+    """
+    conn = get_connection()
+    if not conn:
+        return False
+    try:
+        with conn.cursor() as cur:
+            # Проверяем баланс и списываем 50 монет, добавляем в saved_videos и liked_videos
+            cur.execute("""
+                UPDATE users
+                SET saved_videos = array_append(coalesce(saved_videos, ARRAY[]::INTEGER[]), %s),
+                    liked_videos = array_append(coalesce(liked_videos, ARRAY[]::INTEGER[]), %s),
+                    coins = coins - 50
+                WHERE id = %s AND coins >= 50
+                RETURNING coins
+            """, (video_id, video_id, user_id))
+            if cur.rowcount == 0:
+                return False
+            
+            # Увеличиваем likes, total, value видео
+            cur.execute("""
+                UPDATE videos
+                SET likes = likes + 1,
+                    total = total + 1,
+                    value = value + 1
+                WHERE id = %s
+            """, (video_id,))
+            
+            conn.commit()
+            return True
+    except Exception as e:
+        logging.error(f"Error in video_save: {e}, user_id={user_id}, video_id={video_id}")
+        conn.rollback()
+        return False
+    finally:
+        return_connection(conn)
+
+
 def video_report(user_id, video_id):
     """
     Жалоба на видео: увеличивает total (можно также увеличить dislikes?).

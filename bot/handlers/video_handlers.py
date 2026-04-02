@@ -181,6 +181,52 @@ async def handle_video_report_menu(controller, chat_id: int, message_id: int, la
     )
 
 
+async def handle_video_save(controller, chat_id: int, message_id: int, lang: str):
+    """
+    Сохранение видео (стоимость 50 монет).
+    
+    Args:
+        controller: Экземпляр BotController
+        chat_id: ID чата пользователя
+        message_id: ID сообщения для удаления клавиатуры
+        lang: Язык пользователя
+    """
+    if chat_id not in controller.last_video_data:
+        await controller.send_and_track(chat_id, text=get_text(lang, 'no_active_video'), track=False)
+        return
+    
+    video = controller.last_video_data[chat_id]
+    video_id = video['id']
+    
+    # Проверка баланса
+    user = database.get_user(chat_id)
+    coins = user.get('coins', 0) if user else 0
+    
+    if coins < 50:
+        await controller.send_and_track(
+            chat_id,
+            text=f"❌ Недостаточно средств. Для сохранения видео нужно 50🪙.\nВаш баланс: {coins}🪙\n\nПополните баланс через /donut",
+            track=False
+        )
+        return
+    
+    success = database.video_save(chat_id, video_id)
+    
+    if success:
+        await controller.remove_keyboard(chat_id, message_id)
+        await controller.send_and_track(
+            chat_id,
+            text="✅ Видео сохранено! 🪙-50",
+            track=False,
+        )
+    else:
+        await controller.send_and_track(
+            chat_id,
+            text=get_text(lang, 'insufficient_coins'),
+            track=False,
+        )
+
+
 async def handle_video_report(controller, chat_id: int, lang: str):
     """
     Отправка жалобы на видео.

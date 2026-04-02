@@ -126,12 +126,12 @@ def get_notification_confirm_keyboard(notification_type: str, lang: str = 'ru') 
 
 def get_video_keyboard(lang: str = 'ru') -> InlineKeyboardMarkup:
     """
-    Клавиатура для видео (лайк, дизлайк, жалоба).
-    Без кнопки сохранения.
+    Клавиатура для видео (лайк, дизлайк, сохранение, жалоба).
     """
     buttons = [
         InlineKeyboardButton(text=get_text(lang, 'btn_dislike'), callback_data="video_dislike"),
         InlineKeyboardButton(text=get_text(lang, 'btn_like'), callback_data="video_like"),
+        InlineKeyboardButton(text=get_text(lang, 'btn_video_save'), callback_data="video_save"),
         InlineKeyboardButton(text=get_text(lang, 'btn_video_report'), callback_data="video_report")
     ]
     keyboard_rows = [buttons[:2], buttons[2:]]

@@ -38,6 +38,7 @@ from handlers.video_handlers import (
     handle_video_selection,
     handle_video_like,
     handle_video_dislike,
+    handle_video_save,
     handle_video_report_menu,
     handle_video_report,
 )
@@ -653,6 +654,8 @@ class BotController:
 					await handle_video_like(self, chat_id, message_id, lang)
 				elif callback.data == "video_dislike":
 					await handle_video_dislike(self, chat_id, message_id, lang)
+				elif callback.data == "video_save":
+					await handle_video_save(self, chat_id, message_id, lang)
 				elif callback.data == "video_report":
 					await handle_video_report_menu(self, chat_id, message_id, lang)
 				elif callback.data == "video_report_inappropriate":
