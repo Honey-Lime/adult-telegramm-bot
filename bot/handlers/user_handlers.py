@@ -65,7 +65,7 @@ async def handle_dislike(controller, chat_id: int, message_id: int, lang: str):
     logging.info(f"[HANDLE_DISLIKE] After send_picture: last_image_message_id={controller.last_image_message_id.get(chat_id)}")
 
 
-async def handle_save_from_history(controller, callback_data: str, chat_id: int, lang: str):
+async def handle_save_from_history(controller, callback_data: str, chat_id: int, message_id: int, lang: str):
     """
     Сохранение изображения из истории (кнопка на старом сообщении).
     
@@ -73,6 +73,7 @@ async def handle_save_from_history(controller, callback_data: str, chat_id: int,
         controller: Экземпляр BotController
         callback_data: Данные callback (save_{image_id})
         chat_id: ID чата пользователя
+        message_id: ID сообщения, где была нажата кнопка
         lang: Язык пользователя
     """
     import logging
@@ -82,20 +83,15 @@ async def handle_save_from_history(controller, callback_data: str, chat_id: int,
         await controller.send_and_track(chat_id, text=get_text(lang, 'callback_error'), track=False)
         return
     
-    # Получаем message_id из callback сообщения
-    callback_message_id = None
-    # LOG: Отладка проблемы с message_id
-    logging.info(f"[SAVE_FROM_HISTORY] chat_id={chat_id}, image_id={image_id}, callback_data={callback_data}")
-    logging.info(f"[SAVE_FROM_HISTORY] controller.last_image_message_id={controller.last_image_message_id.get(chat_id)}")
+    logging.info(f"[SAVE_FROM_HISTORY] chat_id={chat_id}, image_id={image_id}, message_id={message_id}, callback_data={callback_data}")
     
     success = database.save(chat_id, image_id)
     
     logging.info(f"[SAVE_FROM_HISTORY] database.save result: success={success}")
     
     if success:
-        target_message_id = controller.last_image_message_id.get(chat_id)
-        logging.info(f"[SAVE_FROM_HISTORY] Removing keyboard from message_id={target_message_id}")
-        await controller.remove_keyboard(chat_id, target_message_id)
+        logging.info(f"[SAVE_FROM_HISTORY] Removing keyboard from message_id={message_id}")
+        await controller.remove_keyboard(chat_id, message_id)
         await controller.send_and_track(
             chat_id,
             text=get_text(lang, 'saved_message'),

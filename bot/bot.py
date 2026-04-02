@@ -663,7 +663,7 @@ class BotController:
 			elif callback.data == "dislike":
 				await handle_dislike(self, chat_id, message_id, lang)
 			elif callback.data.startswith("save_"):
-				await handle_save_from_history(self, callback.data, chat_id, lang)
+				await handle_save_from_history(self, callback.data, chat_id, message_id, lang)
 			elif callback.data == "save":
 				await handle_save_current(self, chat_id, message_id, lang)
 
