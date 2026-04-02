@@ -65,7 +65,7 @@ from handlers.admin import (
     handle_promo_stats,
     handle_promo_delete,
 )
-from handlers.admin.promo_handler import handle_promo_delete_by_number, handle_promo_menu_back
+from handlers.admin.promo_handler import handle_promo_menu_back
 
 # Настройка логирования
 setup_logging(detailed=True)
