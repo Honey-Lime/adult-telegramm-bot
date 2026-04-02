@@ -87,26 +87,7 @@
         cursor: pointer;
         transition: transform 0.2s;
       }
-      .card:hover img {
-        transform: scale(1.05);
-      }
-      .card:hover video {
-        transform: scale(1.05);
-      }
-      .card img {
-        width: 100%;
-        height: 300px;
-        object-fit: cover;
-        display: block;
-        transition: transform 0.2s ease-in-out;
-      }
-      .card video {
-        width: 100%;
-        height: 300px;
-        object-fit: cover;
-        display: block;
-        transition: transform 0.2s ease-in-out;
-      }
+
       .card .info {
         padding: 12px;
         font-size: 16px;
@@ -119,6 +100,35 @@
         text-align: center;
         padding: 40px;
         font-size: 18px;
+      }
+      .loading-spinner {
+        font-size: 24px;
+        animation: pulse 1.5s ease-in-out infinite;
+      }
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 0.4;
+        }
+        50% {
+          opacity: 1;
+        }
+      }
+      .media-placeholder {
+        position: relative;
+        overflow: hidden;
+      }
+      .media-placeholder img,
+      .media-placeholder video {
+        width: 100%;
+        height: 300px;
+        object-fit: cover;
+        display: block;
+        transition: transform 0.2s ease-in-out;
+      }
+      .card:hover .media-placeholder img,
+      .card:hover .media-placeholder video {
+        transform: scale(1.05);
       }
       /* Модальное окно */
       .modal {
@@ -299,9 +309,10 @@
           gallery.innerHTML = '<div class="loading">Нет элементов</div>';
           return;
         }
-        const html = images
-          .map((img) => {
-            // Определяем тип медиа из поля media_type или по расширению файла
+
+        // Сначала рендерим карточки без медиа (только заглушки)
+        const placeholderHtml = images
+          .map((img, index) => {
             const isVideo =
               img.media_type === "video" ||
               img.path.endsWith(".mp4") ||
@@ -311,38 +322,80 @@
               : img.type === 0
                 ? "Аниме"
                 : "Фото";
-            const mediaUrl = isVideo
-              ? `/videos/${img.path}`
-              : `/images/${img.type === 0 ? "anime" : "real"}/${img.path}`;
 
-            if (isVideo) {
-              // URL для превью видео (первый кадр)
-              const thumbnailUrl = `/api/video_thumbnail?video_path=${encodeURIComponent(img.path)}`;
-              return `
-                <div class="card video-card" onclick="openVideoModal('${mediaUrl}', '${typeText}', ${img.id})">
-                  <video src="${mediaUrl}" poster="${thumbnailUrl}" alt="Video ${img.id}" loading="lazy" style="width: 100%; height: 300px; object-fit: cover;" preload="metadata"></video>
-                  <div class="info">
-                    <div>❤️ ${img.likes} | 💔 ${img.dislikes}</div>
-                    <div class="value">⭐ ${img.value}</div>
-                    <div>${typeText}</div>
-                  </div>
+            return `
+              <div class="card ${isVideo ? "video-card" : ""}" data-media-loaded="false" data-index="${index}" onclick="handleCardClick(this, '${img.path}', '${typeText}', ${img.id}, ${img.likes}, ${img.dislikes}, ${img.value}, '${img.media_type || "photo"}')">
+                <div class="media-placeholder" style="width: 100%; height: 300px; background: var(--tg-theme-secondary-bg-color, #f0f0f0); display: flex; align-items: center; justify-content: center;">
+                  <div class="loading-spinner">⏳</div>
                 </div>
-              `;
-            } else {
-              return `
-                <div class="card" onclick="openModal('${mediaUrl}', '${typeText}')">
-                  <img src="${mediaUrl}" alt="Image ${img.id}" loading="lazy">
-                  <div class="info">
-                    <div>❤️ ${img.likes} | 💔 ${img.dislikes}</div>
-                    <div class="value">⭐ ${img.value}</div>
-                    <div>${typeText}</div>
-                  </div>
+                <div class="info">
+                  <div>❤️ ${img.likes} | 💔 ${img.dislikes}</div>
+                  <div class="value">⭐ ${img.value}</div>
+                  <div>${typeText}</div>
                 </div>
-              `;
-            }
+              </div>
+            `;
           })
           .join("");
-        gallery.innerHTML = html;
+        gallery.innerHTML = placeholderHtml;
+
+        // Загружаем медиа с задержкой для каждого элемента
+        images.forEach((img, index) => {
+          setTimeout(() => {
+            loadMediaForCard(index, img);
+          }, index * 100); // Задержка 100мс для каждого следующего элемента
+        });
+      }
+
+      function loadMediaForCard(index, img) {
+        const isVideo =
+          img.media_type === "video" ||
+          img.path.endsWith(".mp4") ||
+          img.path.endsWith(".mov");
+        const mediaUrl = isVideo
+          ? `/videos/${img.path}`
+          : `/images/${img.type === 0 ? "anime" : "real"}/${img.path}`;
+        const thumbnailUrl = isVideo
+          ? `/api/video_thumbnail?video_path=${encodeURIComponent(img.path)}`
+          : null;
+
+        const card = gallery.querySelector(`.card[data-index="${index}"]`);
+        if (!card || card.dataset.mediaLoaded === "true") return;
+
+        const placeholder = card.querySelector(".media-placeholder");
+        if (isVideo) {
+          placeholder.innerHTML = `<video src="${mediaUrl}" poster="${thumbnailUrl}" alt="Video ${img.id}" style="width: 100%; height: 300px; object-fit: cover;" preload="metadata" loading="lazy"></video>`;
+        } else {
+          placeholder.innerHTML = `<img src="${mediaUrl}" alt="Image ${img.id}" style="width: 100%; height: 300px; object-fit: cover; display: block;" loading="lazy">`;
+        }
+        card.dataset.mediaLoaded = "true";
+      }
+
+      function handleCardClick(
+        card,
+        path,
+        typeText,
+        id,
+        likes,
+        dislikes,
+        value,
+        mediaType,
+      ) {
+        if (card.dataset.mediaLoaded !== "true") return;
+
+        const isVideo =
+          mediaType === "video" ||
+          path.endsWith(".mp4") ||
+          path.endsWith(".mov");
+        const mediaUrl = isVideo
+          ? `/videos/${path}`
+          : `/images/${typeText === "Аниме" ? "anime" : "real"}/${path}`;
+
+        if (isVideo) {
+          openVideoModal(mediaUrl, typeText, id);
+        } else {
+          openModal(mediaUrl, typeText);
+        }
       }
 
       topAnimeBtn.addEventListener("click", () => {
@@ -481,8 +534,18 @@
         loadSaved();
       });
 
-      // Загружаем топ аниме по умолчанию
-      loadImages("/api/top?type=0");
+      // Загружаем сохраненные по умолчанию при первом входе
+      if (userId) {
+        savedFilter = "photo";
+        isFirstSavedLoad = false;
+        document.getElementById("sortButtons").style.display = "flex";
+        document.getElementById("filterButtons").style.display = "flex";
+        updateSortButtons();
+        updateFilterButtons();
+        loadSaved();
+      } else {
+        loadImages("/api/top?type=0");
+      }
 
       // Модальное окно для изображений
       function openModal(imageSrc, altText) {
@@ -568,37 +631,18 @@
             try {
               await tg.requestFullscreen();
               debugLog("Telegram requestFullscreen succeeded");
+              // Telegram API сам обновит isFullscreen через viewportChanged
             } catch (err) {
               debugLog("Telegram requestFullscreen failed: " + err.message);
+              // Фоллбэк на браузерный API
+              await tryBrowserFullscreen();
             }
           } else {
             debugLog(
               "tg.requestFullscreen not available, trying browser API...",
             );
-            // Фоллбэк на браузерный API
-            const elem = document.documentElement;
-            if (elem.requestFullscreen) {
-              try {
-                await elem.requestFullscreen();
-                debugLog("Browser fullscreen entered");
-              } catch (err) {
-                debugLog("Browser fullscreen failed: " + err.message);
-              }
-            } else if (elem.webkitRequestFullscreen) {
-              elem.webkitRequestFullscreen();
-              debugLog("webkitRequestFullscreen called");
-            } else if (elem.msRequestFullscreen) {
-              elem.msRequestFullscreen();
-              debugLog("msRequestFullscreen called");
-            } else {
-              debugLog("No browser fullscreen API available");
-            }
+            await tryBrowserFullscreen();
           }
-
-          // Добавляем класс для fullscreen стилей
-          document.body.classList.add("tg-fullscreen");
-          fullscreenActive = true;
-          debugLog("fullscreenActive = true");
         } else {
           // Выход из fullscreen
           debugLog("Exiting fullscreen...");
@@ -608,35 +652,66 @@
             try {
               await tg.exitFullscreen();
               debugLog("Telegram exitFullscreen succeeded");
+              // Telegram API сам обновит isFullscreen через viewportChanged
             } catch (err) {
               debugLog("Telegram exitFullscreen failed: " + err.message);
+              // Фоллбэк на браузерный API
+              await tryBrowserExitFullscreen();
             }
           } else {
             debugLog("tg.exitFullscreen not available, trying browser API...");
-            // Фоллбэк на браузерный API
-            if (document.exitFullscreen) {
-              try {
-                await document.exitFullscreen();
-                debugLog("Browser fullscreen exited");
-              } catch (err) {
-                debugLog("Browser exit failed: " + err.message);
-              }
-            } else if (document.webkitExitFullscreen) {
-              document.webkitExitFullscreen();
-              debugLog("webkitExitFullscreen called");
-            } else if (document.msExitFullscreen) {
-              document.msExitFullscreen();
-              debugLog("msExitFullscreen called");
-            }
+            await tryBrowserExitFullscreen();
           }
+        }
+      }
 
-          // Удаляем класс
+      async function tryBrowserFullscreen() {
+        const elem = document.documentElement;
+        if (elem.requestFullscreen) {
+          try {
+            await elem.requestFullscreen();
+            debugLog("Browser fullscreen entered");
+            // Браузерный API вызовет fullscreenchange событие
+          } catch (err) {
+            debugLog("Browser fullscreen failed: " + err.message);
+          }
+        } else if (elem.webkitRequestFullscreen) {
+          elem.webkitRequestFullscreen();
+          debugLog("webkitRequestFullscreen called");
+        } else if (elem.msRequestFullscreen) {
+          elem.msRequestFullscreen();
+          debugLog("msRequestFullscreen called");
+        } else {
+          debugLog("No browser fullscreen API available");
+          // Если API нет, просто меняем состояние локально
+          document.body.classList.add("tg-fullscreen");
+          fullscreenActive = true;
+          updateFullscreenButton();
+        }
+      }
+
+      async function tryBrowserExitFullscreen() {
+        if (document.exitFullscreen) {
+          try {
+            await document.exitFullscreen();
+            debugLog("Browser fullscreen exited");
+            // Браузерный API вызовет fullscreenchange событие
+          } catch (err) {
+            debugLog("Browser exit failed: " + err.message);
+          }
+        } else if (document.webkitExitFullscreen) {
+          document.webkitExitFullscreen();
+          debugLog("webkitExitFullscreen called");
+        } else if (document.msExitFullscreen) {
+          document.msExitFullscreen();
+          debugLog("msExitFullscreen called");
+        } else {
+          debugLog("No browser exit API available");
+          // Если API нет, просто меняем состояние локально
           document.body.classList.remove("tg-fullscreen");
           fullscreenActive = false;
-          debugLog("fullscreenActive = false");
+          updateFullscreenButton();
         }
-
-        updateFullscreenButton();
       }
 
       fullscreenBtn.addEventListener("click", toggleFullscreen);
@@ -644,12 +719,24 @@
       // Слушаем изменения fullscreen через браузерный API
       document.addEventListener("fullscreenchange", () => {
         const isFullscreen = document.fullscreenElement !== null;
-        console.log("fullscreenchange event, isFullscreen:", isFullscreen);
+        debugLog("fullscreenchange event, isFullscreen: " + isFullscreen);
         fullscreenActive = isFullscreen;
+        if (isFullscreen) {
+          document.body.classList.add("tg-fullscreen");
+        } else {
+          document.body.classList.remove("tg-fullscreen");
+        }
         updateFullscreenButton();
       });
       document.addEventListener("webkitfullscreenchange", () => {
-        fullscreenActive = document.webkitFullscreenElement !== null;
+        const isFullscreen = document.webkitFullscreenElement !== null;
+        debugLog("webkitfullscreenchange event, isFullscreen: " + isFullscreen);
+        fullscreenActive = isFullscreen;
+        if (isFullscreen) {
+          document.body.classList.add("tg-fullscreen");
+        } else {
+          document.body.classList.remove("tg-fullscreen");
+        }
         updateFullscreenButton();
       });
       document.addEventListener("mozfullscreenchange", () => {
@@ -664,10 +751,21 @@
       // Слушаем событие viewportChanged от Telegram (для отслеживания fullscreen)
       if (tg.onEvent) {
         tg.onEvent("viewportChanged", () => {
-          const isFullscreen = tg.isFullscreen === true;
-          debugLog("viewportChanged event, isFullscreen: " + isFullscreen);
+          const isFullscreen =
+            tg.isFullscreen === true || tg.viewportHeight > 0;
+          debugLog(
+            "viewportChanged event, isFullscreen: " +
+              isFullscreen +
+              ", viewportHeight: " +
+              tg.viewportHeight,
+          );
           if (isFullscreen !== fullscreenActive) {
             fullscreenActive = isFullscreen;
+            if (isFullscreen) {
+              document.body.classList.add("tg-fullscreen");
+            } else {
+              document.body.classList.remove("tg-fullscreen");
+            }
             updateFullscreenButton();
           }
         });

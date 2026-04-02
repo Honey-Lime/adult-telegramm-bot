@@ -1765,6 +1765,14 @@ def video_save(user_id, video_id):
         return False
     try:
         with conn.cursor() as cur:
+            # Проверяем, есть ли уже видео в saved_videos
+            cur.execute("SELECT saved_videos FROM users WHERE id = %s", (user_id,))
+            row = cur.fetchone()
+            saved_videos = row['saved_videos'] if row and row['saved_videos'] else []
+            if video_id in saved_videos:
+                # Видео уже сохранено
+                return False
+            
             # Проверяем, есть ли уже видео в liked_videos
             cur.execute("SELECT liked_videos FROM users WHERE id = %s", (user_id,))
             row = cur.fetchone()
