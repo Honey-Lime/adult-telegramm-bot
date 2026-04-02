@@ -1755,9 +1755,9 @@ def video_dislike(user_id, video_id):
 
 def video_save(user_id, video_id):
     """
-    Сохранение видео: добавляет в saved_videos, списывает 50 монет.
-    Если видео ещё не в liked_videos - добавляет туда и увеличивает likes, total, value на 1.
-    Если видео уже в liked_videos - только добавляет в saved_videos (value не увеличивается повторно).
+    Сохранение видео: добавляет в saved_videos и liked_videos, списывает 50 монет.
+    Если видео ещё не в liked_videos - увеличивает likes, total, value на 2 (лайк + сохранение).
+    Если видео уже в liked_videos - увеличивает value на 1 (только сохранение).
     Возвращает True при успехе, False при недостатке монет или ошибке.
     """
     conn = get_connection()
@@ -1771,9 +1771,9 @@ def video_save(user_id, video_id):
             liked_videos = row['liked_videos'] if row and row['liked_videos'] else []
             already_liked = video_id in liked_videos
             
-            # Проверяем баланс и списываем 50 монет, добавляем в saved_videos
-            # Добавляем в liked_videos только если ещё не лайкнуто
+            # Проверяем баланс и списываем 50 монет, добавляем в saved_videos и liked_videos
             if already_liked:
+                # Видео уже лайкнуто, добавляем только в saved_videos
                 cur.execute("""
                     UPDATE users
                     SET saved_videos = array_append(coalesce(saved_videos, ARRAY[]::INTEGER[]), %s),
@@ -1782,6 +1782,7 @@ def video_save(user_id, video_id):
                     RETURNING coins
                 """, (video_id, user_id))
             else:
+                # Видео ещё не лайкнуто, добавляем в оба списка
                 cur.execute("""
                     UPDATE users
                     SET saved_videos = array_append(coalesce(saved_videos, ARRAY[]::INTEGER[]), %s),
@@ -1794,13 +1795,21 @@ def video_save(user_id, video_id):
             if cur.rowcount == 0:
                 return False
             
-            # Увеличиваем likes, total, value только если видео ещё не было лайкнуто
-            if not already_liked:
+            # Увеличиваем статистику видео
+            if already_liked:
+                # Видео уже лайкнуто - увеличиваем только value на 1
+                cur.execute("""
+                    UPDATE videos
+                    SET value = value + 1
+                    WHERE id = %s
+                """, (video_id,))
+            else:
+                # Видео ещё не лайкнуто - увеличиваем likes, total, value на 2 (лайк + сохранение)
                 cur.execute("""
                     UPDATE videos
                     SET likes = likes + 1,
                         total = total + 1,
-                        value = value + 1
+                        value = value + 2
                     WHERE id = %s
                 """, (video_id,))
             
