@@ -86,6 +86,16 @@ def get_db_connection():
 _cache = {}
 _CACHE_TTL = 30  # секунды
 
+def clear_saved_cache(user_id: int):
+    """Очищает кэш для конкретного пользователя."""
+    keys_to_delete = [
+        key for key in _cache.keys()
+        if key[0] == 'get_saved' and user_id in (key[1] or ())
+    ]
+    for key in keys_to_delete:
+        del _cache[key]
+    logger.info(f"Cleared saved cache for user_id={user_id}, cleared {len(keys_to_delete)} keys")
+
 def cached_with_ttl(ttl):
     """Декоратор для кэширования результата функции с TTL."""
     def decorator(func):
@@ -247,6 +257,8 @@ async def save_video(user_id: int, video_id: int):
 		success = video_save(user_id, video_id)
 		if success:
 			logger.info(f"Video {video_id} saved successfully for user {user_id}")
+			# Очищаем кэш сохранённых для пользователя
+			clear_saved_cache(user_id)
 			return {"status": "success"}
 		else:
 			logger.warning(f"Failed to save video {video_id} for user {user_id} (insufficient coins or already saved)")

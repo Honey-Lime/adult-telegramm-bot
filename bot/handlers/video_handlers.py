@@ -193,7 +193,7 @@ async def handle_video_report_menu(controller, chat_id: int, message_id: int, la
     )
 
 
-async def handle_video_save(controller, chat_id: int, message_id: int, lang: str, video_id: int = None):
+async def handle_video_save(controller, chat_id: int, message_id: int, lang: str, video_id: int = None, show_menu: bool = True):
     """
     Сохранение видео (стоимость 50 монет).
     
@@ -203,6 +203,7 @@ async def handle_video_save(controller, chat_id: int, message_id: int, lang: str
         message_id: ID сообщения для удаления клавиатуры
         lang: Язык пользователя
         video_id: ID видео (опционально, для кнопки после оценки)
+        show_menu: Показывать меню выбора видео после сохранения (по умолчанию True)
     """
     if video_id is None:
         if chat_id not in controller.last_video_data:
@@ -234,14 +235,15 @@ async def handle_video_save(controller, chat_id: int, message_id: int, lang: str
         )
         
         # Возврат в меню выбора видео новым сообщением (не удаляя видео)
-        user = database.get_user(chat_id)
-        coins = user.get('coins', 0) if user else 0
-        keyboard = get_video_menu_keyboard(lang)
-        await controller.send_and_track(
-            chat_id,
-            text=f"Баланс: {coins}🪙\nВыберите видео:",
-            reply_markup=keyboard,
-        )
+        if show_menu:
+            user = database.get_user(chat_id)
+            coins = user.get('coins', 0) if user else 0
+            keyboard = get_video_menu_keyboard(lang)
+            await controller.send_and_track(
+                chat_id,
+                text=f"Баланс: {coins}🪙\nВыберите видео:",
+                reply_markup=keyboard,
+            )
     else:
         await controller.send_and_track(
             chat_id,

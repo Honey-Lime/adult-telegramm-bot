@@ -256,9 +256,13 @@
       // Инициализация Telegram WebApp
       if (window.Telegram?.WebApp) {
         tg.ready();
-        tg.expand();
         debugLog("Telegram WebApp initialized, version: " + tg.version);
         debugLog("tg.expand exists: " + typeof tg.expand);
+        debugLog("tg.isFullscreen initial: " + tg.isFullscreen);
+        debugLog("tg.viewportHeight initial: " + tg.viewportHeight);
+        debugLog("tg.requestFullscreen exists: " + typeof tg.requestFullscreen);
+        debugLog("tg.exitFullscreen exists: " + typeof tg.exitFullscreen);
+        tg.expand();
       }
 
       const urlParams = new URLSearchParams(window.location.search);
@@ -284,6 +288,11 @@
 
       async function loadImages(endpoint) {
         console.log("loadImages called with endpoint:", endpoint);
+
+        // Сбрасываем очередь загрузки при новой загрузке
+        pendingMediaQueue = [];
+        isMediaLoading = false;
+
         gallery.innerHTML = '<div class="loading">Загрузка...</div>';
         try {
           const fullUrl = endpoint.startsWith("http")
@@ -303,6 +312,10 @@
           gallery.innerHTML = `<div class="loading">Ошибка: ${error.message}</div>`;
         }
       }
+
+      // Хранилище данных для загрузки медиа
+      let pendingMediaQueue = [];
+      let isMediaLoading = false;
 
       function renderGallery(images) {
         if (images.length === 0) {
@@ -324,7 +337,7 @@
                 : "Фото";
 
             return `
-              <div class="card ${isVideo ? "video-card" : ""}" data-media-loaded="false" data-index="${index}" onclick="handleCardClick(this, '${img.path}', '${typeText}', ${img.id}, ${img.likes}, ${img.dislikes}, ${img.value}, '${img.media_type || "photo"}')">
+              <div class="card ${isVideo ? "video-card" : ""}" data-media-loaded="false" data-index="${index}">
                 <div class="media-placeholder" style="width: 100%; height: 300px; background: var(--tg-theme-secondary-bg-color, #f0f0f0); display: flex; align-items: center; justify-content: center;">
                   <div class="loading-spinner">⏳</div>
                 </div>
@@ -339,36 +352,131 @@
           .join("");
         gallery.innerHTML = placeholderHtml;
 
-        // Загружаем медиа с задержкой для каждого элемента
-        images.forEach((img, index) => {
-          setTimeout(() => {
-            loadMediaForCard(index, img);
-          }, index * 100); // Задержка 100мс для каждого следующего элемента
-        });
+        // Сохраняем данные для последовательной загрузки
+        pendingMediaQueue = images.map((img, index) => ({ index, img }));
+
+        // Запускаем последовательную загрузку сверху вниз
+        loadMediaSequentially();
+      }
+
+      async function loadMediaSequentially() {
+        if (isMediaLoading || pendingMediaQueue.length === 0) return;
+
+        isMediaLoading = true;
+        const total = pendingMediaQueue.length;
+        debugLog("📥 Загрузка медиа: 0/" + total);
+
+        let loaded = 0;
+        for (const item of pendingMediaQueue) {
+          await loadMediaForCard(item.index, item.img);
+          loaded++;
+          // Обновляем прогресс каждые 10 элементов
+          if (loaded % 10 === 0 || loaded === total) {
+            debugLog("📥 Загрузка медиа: " + loaded + "/" + total);
+          }
+          // Небольшая задержка между загрузками для плавности
+          await new Promise((resolve) => setTimeout(resolve, 50));
+        }
+
+        isMediaLoading = false;
+        debugLog("✅ Загрузка медиа завершена: " + total + " элементов");
       }
 
       function loadMediaForCard(index, img) {
-        const isVideo =
-          img.media_type === "video" ||
-          img.path.endsWith(".mp4") ||
-          img.path.endsWith(".mov");
-        const mediaUrl = isVideo
-          ? `/videos/${img.path}`
-          : `/images/${img.type === 0 ? "anime" : "real"}/${img.path}`;
-        const thumbnailUrl = isVideo
-          ? `/api/video_thumbnail?video_path=${encodeURIComponent(img.path)}`
-          : null;
+        return new Promise((resolve) => {
+          const isVideo =
+            img.media_type === "video" ||
+            img.path.endsWith(".mp4") ||
+            img.path.endsWith(".mov");
+          const mediaUrl = isVideo
+            ? `/videos/${img.path}`
+            : `/images/${img.type === 0 ? "anime" : "real"}/${img.path}`;
+          const thumbnailUrl = isVideo
+            ? `/api/video_thumbnail?video_path=${encodeURIComponent(img.path)}`
+            : null;
+          const typeText = isVideo
+            ? "🎬 Видео"
+            : img.type === 0
+              ? "Аниме"
+              : "Фото";
 
-        const card = gallery.querySelector(`.card[data-index="${index}"]`);
-        if (!card || card.dataset.mediaLoaded === "true") return;
+          const card = gallery.querySelector(`.card[data-index="${index}"]`);
+          if (!card || card.dataset.mediaLoaded === "true") {
+            resolve();
+            return;
+          }
 
-        const placeholder = card.querySelector(".media-placeholder");
-        if (isVideo) {
-          placeholder.innerHTML = `<video src="${mediaUrl}" poster="${thumbnailUrl}" alt="Video ${img.id}" style="width: 100%; height: 300px; object-fit: cover;" preload="metadata" loading="lazy"></video>`;
-        } else {
-          placeholder.innerHTML = `<img src="${mediaUrl}" alt="Image ${img.id}" style="width: 100%; height: 300px; object-fit: cover; display: block;" loading="lazy">`;
-        }
-        card.dataset.mediaLoaded = "true";
+          const placeholder = card.querySelector(".media-placeholder");
+
+          if (isVideo) {
+            const video = document.createElement("video");
+            video.src = mediaUrl;
+            video.poster = thumbnailUrl;
+            video.alt = "Video " + img.id;
+            video.style.cssText =
+              "width: 100%; height: 300px; object-fit: cover;";
+            video.preload = "metadata";
+
+            video.onloadedmetadata = () => {
+              placeholder.innerHTML = "";
+              placeholder.appendChild(video);
+              card.dataset.mediaLoaded = "true";
+              card.onclick = () =>
+                handleCardClick(
+                  card,
+                  img.path,
+                  typeText,
+                  img.id,
+                  img.likes,
+                  img.dislikes,
+                  img.value,
+                  img.media_type || "video",
+                );
+              debugLog("Video loaded for card " + index);
+              resolve();
+            };
+
+            video.onerror = () => {
+              placeholder.innerHTML = "<div>⚠️</div>";
+              card.dataset.mediaLoaded = "true";
+              debugLog("Video load error for card " + index);
+              resolve();
+            };
+          } else {
+            const image = document.createElement("img");
+            image.src = mediaUrl;
+            image.alt = "Image " + img.id;
+            image.style.cssText =
+              "width: 100%; height: 300px; object-fit: cover; display: block;";
+            image.loading = "lazy";
+
+            image.onload = () => {
+              placeholder.innerHTML = "";
+              placeholder.appendChild(image);
+              card.dataset.mediaLoaded = "true";
+              card.onclick = () =>
+                handleCardClick(
+                  card,
+                  img.path,
+                  typeText,
+                  img.id,
+                  img.likes,
+                  img.dislikes,
+                  img.value,
+                  img.media_type || "photo",
+                );
+              debugLog("Image loaded for card " + index);
+              resolve();
+            };
+
+            image.onerror = () => {
+              placeholder.innerHTML = "<div>⚠️</div>";
+              card.dataset.mediaLoaded = "true";
+              debugLog("Image load error for card " + index);
+              resolve();
+            };
+          }
+        });
       }
 
       function handleCardClick(
@@ -381,8 +489,6 @@
         value,
         mediaType,
       ) {
-        if (card.dataset.mediaLoaded !== "true") return;
-
         const isVideo =
           mediaType === "video" ||
           path.endsWith(".mp4") ||
@@ -612,11 +718,20 @@
       }
 
       async function toggleFullscreen() {
+        // Используем актуальное состояние из Telegram WebApp, если доступно
+        const tgIsFullscreen = tg.isFullscreen === true;
+        const shouldEnterFullscreen = !tgIsFullscreen;
+
         debugLog(
-          "toggleFullscreen called, fullscreenActive: " + fullscreenActive,
+          "toggleFullscreen called, fullscreenActive: " +
+            fullscreenActive +
+            ", tg.isFullscreen: " +
+            tgIsFullscreen +
+            ", shouldEnter: " +
+            shouldEnterFullscreen,
         );
 
-        if (!fullscreenActive) {
+        if (shouldEnterFullscreen) {
           // Вход в fullscreen
           debugLog("Entering fullscreen...");
 
@@ -751,14 +866,17 @@
       // Слушаем событие viewportChanged от Telegram (для отслеживания fullscreen)
       if (tg.onEvent) {
         tg.onEvent("viewportChanged", () => {
-          const isFullscreen =
-            tg.isFullscreen === true || tg.viewportHeight > 0;
+          // В Telegram WebApp isFullscreen - это свойство самого объекта tg
+          const isFullscreen = tg.isFullscreen === true;
           debugLog(
             "viewportChanged event, isFullscreen: " +
               isFullscreen +
+              ", tg.isFullscreen: " +
+              tg.isFullscreen +
               ", viewportHeight: " +
               tg.viewportHeight,
           );
+          // Синхронизируем состояние только если оно изменилось
           if (isFullscreen !== fullscreenActive) {
             fullscreenActive = isFullscreen;
             if (isFullscreen) {
