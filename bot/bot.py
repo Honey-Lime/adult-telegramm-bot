@@ -547,20 +547,44 @@ class BotController:
 				# Получаем сумму в звездах из сообщения
 				stars_paid = message.successful_payment.total_amount
 				
+				logging.info(f"Payment received: user {chat_id}, amount={amount} coins, stars_paid={stars_paid}, payload={payload}")
+				
 				# Начисляем монеты пользователю
-				database.add_coins(chat_id, amount)
+				coins_added = database.add_coins(chat_id, amount)
+				if not coins_added:
+					logging.error(f"Failed to add coins to user {chat_id}, amount={amount}")
+					await self.send_and_track(
+						chat_id,
+						text="❌ Ошибка при начислении монет. Обратитесь к администрации.",
+						track=False
+					)
+					return
 				
 				# Добавляем запись о транзакции
-				database.add_transaction(chat_id, amount, stars_paid)
+				transaction_added = database.add_transaction(chat_id, amount, stars_paid)
+				if not transaction_added:
+					logging.error(f"Failed to add transaction for user {chat_id}")
+				
+				# Проверяем баланс после начисления
+				user = database.get_user(chat_id)
+				current_balance = user.get('coins', 0) if user else 0
+				logging.info(f"Coins added successfully. User {chat_id} new balance: {current_balance}")
 				
 				# Отправляем подтверждение
 				await self.send_and_track(
 					chat_id,
-					text=f"✅ Оплата прошла успешно!\n\nВаш баланс пополнен на {amount}🪙\nСписано: {stars_paid} ⭐",
+					text=f"✅ Оплата прошла успешно!\n\nВаш баланс пополнен на {amount}🪙\nСписано: {stars_paid} ⭐\nТекущий баланс: {current_balance}🪙",
 					track=False
 				)
 				
-				logging.info(f"Payment successful: user {chat_id}, {amount} coins, {stars_paid} stars")
+				logging.info(f"Payment successful: user {chat_id}, {amount} coins, {stars_paid} stars, new_balance={current_balance}")
+			else:
+				logging.error(f"Invalid payment payload: {payload} for user {chat_id}")
+				await self.send_and_track(
+					chat_id,
+					text="❌ Ошибка обработки платежа. Обратитесь к администрации.",
+					track=False
+				)
 		except Exception as e:
 			logging.error(f"Error processing successful payment: {e}")
 			await self.send_and_track(

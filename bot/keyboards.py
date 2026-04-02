@@ -131,8 +131,8 @@ def get_video_keyboard(lang: str = 'ru') -> InlineKeyboardMarkup:
     buttons = [
         InlineKeyboardButton(text=get_text(lang, 'btn_dislike'), callback_data="video_dislike"),
         InlineKeyboardButton(text=get_text(lang, 'btn_like'), callback_data="video_like"),
-        InlineKeyboardButton(text=get_text(lang, 'btn_video_save'), callback_data="video_save"),
-        InlineKeyboardButton(text=get_text(lang, 'btn_video_report'), callback_data="video_report")
+        InlineKeyboardButton(text=get_text(lang, 'btn_video_report'), callback_data="video_report"),
+        InlineKeyboardButton(text=get_text(lang, 'btn_video_save'), callback_data="video_save")
     ]
     keyboard_rows = [buttons[:2], buttons[2:]]
     return InlineKeyboardMarkup(inline_keyboard=keyboard_rows)
