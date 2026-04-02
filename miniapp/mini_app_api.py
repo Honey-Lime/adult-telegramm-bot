@@ -9,6 +9,11 @@ import os
 import time
 from functools import lru_cache, wraps
 from dotenv import load_dotenv
+import sys
+from pathlib import Path
+
+# Добавляем корень проекта в путь для импорта
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 load_dotenv()
 
@@ -203,6 +208,28 @@ async def get_liked_videos(user_id: int):
 		raise HTTPException(status_code=500, detail=str(e))
 	finally:
 		conn.close()
+
+@app.post("/api/save_video")
+async def save_video(user_id: int, video_id: int):
+	"""
+	Сохраняет видео: добавляет в saved_videos и liked_videos, списывает 50 монет.
+	"""
+	logger.info(f"save_video called with user_id={user_id}, video_id={video_id}")
+	try:
+		from bot.database import video_save
+		success = video_save(user_id, video_id)
+		if success:
+			logger.info(f"Video {video_id} saved successfully for user {user_id}")
+			return {"status": "success"}
+		else:
+			logger.warning(f"Failed to save video {video_id} for user {user_id} (insufficient coins or already saved)")
+			raise HTTPException(status_code=400, detail="Недостаточно монет или видео уже сохранено")
+	except ImportError as e:
+		logger.error(f"Failed to import video_save: {e}")
+		raise HTTPException(status_code=500, detail="Ошибка иморта функции сохранения")
+	except Exception as e:
+		logger.error(f"Error in save_video: {e}")
+		raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/app")
 async def serve_app():

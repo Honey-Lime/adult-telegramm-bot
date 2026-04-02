@@ -240,7 +240,7 @@
 
             if (isVideo) {
               return `
-                <div class="card video-card" onclick="openVideoModal('${mediaUrl}', '${typeText}')">
+                <div class="card video-card" onclick="openVideoModal('${mediaUrl}', '${typeText}', ${img.id})">
                   <video src="${mediaUrl}" poster="${mediaUrl}#t=0.1" alt="Video ${img.id}" loading="lazy" style="width: 100%; height: 300px; object-fit: cover;" preload="metadata"></video>
                   <div class="info">
                     <div>❤️ ${img.likes} | 💔 ${img.dislikes}</div>
@@ -419,12 +419,19 @@
         captionText.innerHTML = altText;
       }
 
+      // Текущее видео для сохранения
+      let currentVideoId = null;
+
       // Модальное окно для видео
-      function openVideoModal(videoSrc, altText) {
+      function openVideoModal(videoSrc, altText, videoId = null) {
         const modal = document.getElementById("imageModal");
         const modalImg = document.getElementById("modalImage");
         const modalVideo = document.getElementById("modalVideo");
         const captionText = document.getElementById("caption");
+        const videoSaveButton = document.getElementById("videoSaveButton");
+
+        // Сохраняем ID видео
+        currentVideoId = videoId;
 
         // Скрываем изображение, показываем видео
         modalImg.style.display = "none";
@@ -434,8 +441,42 @@
           modalVideo.play();
         }
 
+        // Показываем кнопку сохранения, если это сохраненное видео
+        videoSaveButton.style.display = videoId ? "block" : "none";
+
         modal.style.display = "block";
         captionText.innerHTML = altText;
+      }
+
+      async function saveCurrentVideo() {
+        if (!currentVideoId || !userId) {
+          tg.showAlert("Ошибка: не удалось определить видео или пользователя");
+          return;
+        }
+
+        try {
+          const response = await fetch(
+            `/api/save_video?user_id=${userId}&video_id=${currentVideoId}`,
+            {
+              method: "POST",
+            },
+          );
+
+          if (response.ok) {
+            tg.showAlert("✅ Видео сохранено! 🪙-50");
+            // Скрываем кнопку после сохранения
+            document.getElementById("videoSaveButton").style.display = "none";
+            currentVideoId = null;
+          } else {
+            const error = await response.json();
+            tg.showAlert(
+              "❌ Ошибка: " + (error.detail || "Не удалось сохранить видео"),
+            );
+          }
+        } catch (error) {
+          console.error(error);
+          tg.showAlert("❌ Ошибка сохранения");
+        }
       }
 
       function closeModal() {
@@ -502,6 +543,29 @@
         controls
       ></video>
       <div id="caption"></div>
+      <div
+        id="videoSaveButton"
+        style="display: none; text-align: center; margin-top: 20px"
+      >
+        <button
+          id="saveVideoBtn"
+          style="
+            padding: 12px 24px;
+            background: var(--tg-theme-button-color, #2481cc);
+            color: var(--tg-theme-button-text-color, #fff);
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+          "
+          onclick="
+            event.stopPropagation();
+            saveCurrentVideo();
+          "
+        >
+          Сохранить 50🪙
+        </button>
+      </div>
     </div>
   </body>
 </html>
