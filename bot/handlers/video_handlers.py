@@ -120,17 +120,17 @@ async def handle_video_like(controller, chat_id: int, message_id: int, lang: str
         )
         
         # Через 2 секунды показываем меню выбора видео
-        asyncio.create_task(_show_video_menu_delayed(controller, chat_id, lang))
+        asyncio.create_task(_show_video_menu_delayed(controller, chat_id, message_id, lang))
     else:
         await controller.send_and_track(chat_id, text=get_text(lang, 'error'), track=False)
 
 
-async def _show_video_menu_delayed(controller, chat_id: int, lang: str):
+async def _show_video_menu_delayed(controller, chat_id: int, message_id: int, lang: str):
     """Показ меню выбора видео с задержкой 2 секунды"""
     await asyncio.sleep(2)
     
     # Удаляем сообщение с видео
-    await controller.delete_current(chat_id)
+    await controller.delete_current(chat_id, message_id)
     
     # Показываем меню выбора видео
     user = database.get_user(chat_id)
@@ -171,7 +171,7 @@ async def handle_video_dislike(controller, chat_id: int, message_id: int, lang: 
         )
         
         # Через 2 секунды показываем меню выбора видео
-        asyncio.create_task(_show_video_menu_delayed(controller, chat_id, lang))
+        asyncio.create_task(_show_video_menu_delayed(controller, chat_id, message_id, lang))
     else:
         await controller.send_and_track(chat_id, text=get_text(lang, 'error'), track=False)
 

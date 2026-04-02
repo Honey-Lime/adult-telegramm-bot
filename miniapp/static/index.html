@@ -232,6 +232,15 @@
         isFullscreen: false,
         showAlert: (msg) => alert(msg),
         viewportHeight: 0,
+        requestFullscreen: async () => {
+          debugLog("Mock requestFullscreen called");
+          const elem = document.documentElement;
+          if (elem.requestFullscreen) await elem.requestFullscreen();
+        },
+        exitFullscreen: async () => {
+          debugLog("Mock exitFullscreen called");
+          if (document.exitFullscreen) await document.exitFullscreen();
+        },
       };
 
       // Инициализация Telegram WebApp
@@ -547,26 +556,43 @@
         if (!fullscreenActive) {
           // Вход в fullscreen
           debugLog("Entering fullscreen...");
-          tg.expand();
-          debugLog("Called tg.expand()");
 
-          // Пробуем браузерный API
-          const elem = document.documentElement;
-          if (elem.requestFullscreen) {
+          // Сначала расширяем viewport
+          if (typeof tg.expand === "function") {
+            tg.expand();
+            debugLog("Called tg.expand()");
+          }
+
+          // Пробуем Telegram WebApp API для fullscreen (версия 6.1+)
+          if (typeof tg.requestFullscreen === "function") {
             try {
-              await elem.requestFullscreen();
-              debugLog("Browser fullscreen entered");
+              await tg.requestFullscreen();
+              debugLog("Telegram requestFullscreen succeeded");
             } catch (err) {
-              debugLog("Browser fullscreen failed: " + err.message);
+              debugLog("Telegram requestFullscreen failed: " + err.message);
             }
-          } else if (elem.webkitRequestFullscreen) {
-            elem.webkitRequestFullscreen();
-            debugLog("webkitRequestFullscreen called");
-          } else if (elem.msRequestFullscreen) {
-            elem.msRequestFullscreen();
-            debugLog("msRequestFullscreen called");
           } else {
-            debugLog("No browser fullscreen API available");
+            debugLog(
+              "tg.requestFullscreen not available, trying browser API...",
+            );
+            // Фоллбэк на браузерный API
+            const elem = document.documentElement;
+            if (elem.requestFullscreen) {
+              try {
+                await elem.requestFullscreen();
+                debugLog("Browser fullscreen entered");
+              } catch (err) {
+                debugLog("Browser fullscreen failed: " + err.message);
+              }
+            } else if (elem.webkitRequestFullscreen) {
+              elem.webkitRequestFullscreen();
+              debugLog("webkitRequestFullscreen called");
+            } else if (elem.msRequestFullscreen) {
+              elem.msRequestFullscreen();
+              debugLog("msRequestFullscreen called");
+            } else {
+              debugLog("No browser fullscreen API available");
+            }
           }
 
           // Добавляем класс для fullscreen стилей
@@ -576,19 +602,32 @@
         } else {
           // Выход из fullscreen
           debugLog("Exiting fullscreen...");
-          if (document.exitFullscreen) {
+
+          // Пробуем Telegram WebApp API для выхода из fullscreen
+          if (typeof tg.exitFullscreen === "function") {
             try {
-              await document.exitFullscreen();
-              debugLog("Browser fullscreen exited");
+              await tg.exitFullscreen();
+              debugLog("Telegram exitFullscreen succeeded");
             } catch (err) {
-              debugLog("Browser exit failed: " + err.message);
+              debugLog("Telegram exitFullscreen failed: " + err.message);
             }
-          } else if (document.webkitExitFullscreen) {
-            document.webkitExitFullscreen();
-            debugLog("webkitExitFullscreen called");
-          } else if (document.msExitFullscreen) {
-            document.msExitFullscreen();
-            debugLog("msExitFullscreen called");
+          } else {
+            debugLog("tg.exitFullscreen not available, trying browser API...");
+            // Фоллбэк на браузерный API
+            if (document.exitFullscreen) {
+              try {
+                await document.exitFullscreen();
+                debugLog("Browser fullscreen exited");
+              } catch (err) {
+                debugLog("Browser exit failed: " + err.message);
+              }
+            } else if (document.webkitExitFullscreen) {
+              document.webkitExitFullscreen();
+              debugLog("webkitExitFullscreen called");
+            } else if (document.msExitFullscreen) {
+              document.msExitFullscreen();
+              debugLog("msExitFullscreen called");
+            }
           }
 
           // Удаляем класс
@@ -621,6 +660,18 @@
         fullscreenActive = document.msFullscreenElement !== null;
         updateFullscreenButton();
       });
+
+      // Слушаем событие viewportChanged от Telegram (для отслеживания fullscreen)
+      if (tg.onEvent) {
+        tg.onEvent("viewportChanged", () => {
+          const isFullscreen = tg.isFullscreen === true;
+          debugLog("viewportChanged event, isFullscreen: " + isFullscreen);
+          if (isFullscreen !== fullscreenActive) {
+            fullscreenActive = isFullscreen;
+            updateFullscreenButton();
+          }
+        });
+      }
 
       // Инициализация кнопки
       updateFullscreenButton();
