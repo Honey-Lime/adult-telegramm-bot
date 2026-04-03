@@ -294,8 +294,6 @@ class BotController:
 	# ==================== ОБРАБОТЧИКИ КОМАНД ====================
 
 	async def cmd_start(self, message: Message) -> None:
-		# Обновляем профиль пользователя
-		await self._update_user_profile_from_message(message)
 		chat_id = message.chat.id
 		referrer_id = None
 		promo_code = None
@@ -335,8 +333,13 @@ class BotController:
 
 		if user is None:
 			# Ошибка при получении/создании пользователя
-			await message.answer(get_text(lang, 'registration_error'))
+			await message.answer(get_text(user_lang, 'registration_error'))
 			return
+
+		# Обновляем профиль пользователя (имя, язык) после получения/создания
+		await self._update_user_profile_from_message(message)
+		# Перечитываем пользователя, чтобы получить актуальный язык
+		user = database.get_user(chat_id)
 
 		logging.debug(f"User object: {user}")  # для отладки
 

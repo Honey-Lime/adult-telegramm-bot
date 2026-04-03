@@ -1410,10 +1410,15 @@ def update_user_profile(user_id, first_name=None, last_name=None, username=None,
 				updates.append("username = %s")
 				params.append(username)
 			if language_code is not None and has_language_column:
-				# Определяем язык из language_code Telegram
-				language = 'ru' if language_code.startswith('ru') else 'en'
-				updates.append("language = %s")
-				params.append(language)
+				# Определяем язык из language_code Telegram, но только если у пользователя ещё не установлен язык
+				cur.execute("SELECT language FROM users WHERE id = %s", (user_id,))
+				user_row = cur.fetchone()
+				current_language = user_row[0] if user_row else None
+				if not current_language:
+					# Язык ещё не установлен — определяем из Telegram
+					language = 'ru' if language_code.startswith('ru') else 'en'
+					updates.append("language = %s")
+					params.append(language)
 			if not updates:
 				# Нет полей для обновления
 				return True
