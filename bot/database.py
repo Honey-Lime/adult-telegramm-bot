@@ -2520,6 +2520,60 @@ def get_all_promo_links_registration_stats() -> list:
         return_connection(conn)
 
 
+def get_referral_stats_by_users(limit: int = 25) -> list:
+    """
+    Возвращает статистику по пользователям, которые привлекли рефералов.
+    Каждый элемент: {
+        'referrer_id': int,
+        'first_name': str или None,
+        'last_name': str или None,
+        'username': str или None,
+        'referrals_count': int,
+        'today_referrals': int,
+        'total_coins_earned': int
+    }
+    """
+    conn = get_connection()
+    if not conn:
+        return []
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT 
+                    u.id,
+                    u.first_name,
+                    u.last_name,
+                    u.username,
+                    COUNT(r.id) as referrals_count,
+                    COUNT(*) FILTER (WHERE r.registered_at >= CURRENT_DATE) as today_referrals,
+                    u.coins
+                FROM users u
+                LEFT JOIN users r ON r.referrer_id = u.id
+                WHERE u.id IN (SELECT DISTINCT referrer_id FROM users WHERE referrer_id IS NOT NULL)
+                GROUP BY u.id, u.first_name, u.last_name, u.username, u.coins
+                ORDER BY referrals_count DESC
+                LIMIT %s
+            """, (limit,))
+            rows = cur.fetchall()
+            result = []
+            for row in rows:
+                result.append({
+                    'referrer_id': row[0],
+                    'first_name': row[1],
+                    'last_name': row[2],
+                    'username': row[3],
+                    'referrals_count': row[4],
+                    'today_referrals': row[5],
+                    'total_coins_earned': row[6]
+                })
+            return result
+    except Exception as e:
+        logging.error(f"Error getting referral stats by users: {e}")
+        return []
+    finally:
+        return_connection(conn)
+
+
 def get_user_promo_code(user_id: int) -> str:
     """
     Возвращает promo_code пользователя.
