@@ -109,6 +109,9 @@ LOCALES = {
         'restore_error': "❌ Ошибка при восстановлении",
         'btn_delete': "❌ Удалить",
         'btn_restore': "✅ Восстановить",
+        'btn_change_type': "🔄 Сменить тип",
+        'type_changed_moderation': "✅ Тип изображения изменён",
+        'type_change_error': "❌ Ошибка при смене типа",
         
         # Оповещения
         'notifications_menu_text': "📢 Выберите оповещение для рассылки:",
@@ -284,6 +287,9 @@ LOCALES = {
         'restore_error': "❌ Error restoring",
         'btn_delete': "❌ Delete",
         'btn_restore': "✅ Restore",
+        'btn_change_type': "🔄 Change type",
+        'type_changed_moderation': "✅ Image type changed",
+        'type_change_error': "❌ Error changing type",
         
         # Оповещения
         'notifications_menu_text': "📢 Select notification for broadcast:",

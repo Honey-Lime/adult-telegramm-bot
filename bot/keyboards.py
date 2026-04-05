@@ -79,7 +79,8 @@ def get_moderation_keyboard(image_id: int, lang: str = 'ru') -> InlineKeyboardMa
     """
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=get_text(lang, 'btn_delete'), callback_data=f"mod_delete_{image_id}"),
-         InlineKeyboardButton(text=get_text(lang, 'btn_restore'), callback_data=f"mod_restore_{image_id}")]
+         InlineKeyboardButton(text=get_text(lang, 'btn_restore'), callback_data=f"mod_restore_{image_id}")],
+        [InlineKeyboardButton(text=get_text(lang, 'btn_change_type'), callback_data=f"mod_change_type_{image_id}")]
     ])
 
 

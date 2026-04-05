@@ -60,6 +60,7 @@ from handlers.admin import (
     handle_admin_moderation,
     handle_moderation_delete,
     handle_moderation_restore,
+    handle_moderation_change_type,
     handle_admin_notifications,
     handle_notification_callbacks,
     handle_admin_promo_links,
@@ -764,7 +765,8 @@ class BotController:
 			await self.send_next_moderation_image(chat_id)
 			return
 
-		caption = f"🛡 Модерация: {image['id']}\nОсталось: {remaining}"
+		pic_type = 'Аниме' if image['type'] == database.ImageType.ANIME.value else 'Фото'
+		caption = f"🛡 Модерация: {image['id']}\nТип: {pic_type}\nОсталось: {remaining}"
 		keyboard = keyboards.get_moderation_keyboard(image['id'])
 		image_file = FSInputFile(full_path)
 		sent = await self.send_and_track(chat_id, photo=image_file, text=caption, reply_markup=keyboard)
@@ -875,6 +877,8 @@ class BotController:
 				await handle_moderation_delete(self, callback.data, chat_id, lang)
 			elif callback.data.startswith("mod_restore_"):
 				await handle_moderation_restore(self, callback.data, chat_id, lang)
+			elif callback.data.startswith("mod_change_type_"):
+				await handle_moderation_change_type(self, callback.data, chat_id, lang)
 			elif callback.data == "admin_notifications":
 				await handle_admin_notifications(self, chat_id, message_id, lang)
 			elif callback.data.startswith("notification_"):

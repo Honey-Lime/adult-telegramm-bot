@@ -1069,6 +1069,42 @@ def clear_moderation(image_id):
         return_connection(conn)
 
 
+def change_image_type(image_id):
+    """
+    Меняет тип изображения на обратный (ANIME <-> REAL) и перемещает файл.
+    Возвращает новый тип при успехе, None при ошибке.
+    """
+    conn = get_connection()
+    if not conn:
+        return None
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT type FROM pictures WHERE id = %s", (image_id,))
+            row = cur.fetchone()
+            if not row:
+                logging.error(f"Image {image_id} not found in database")
+                return None
+            current_type = row[0]
+            new_type = ImageType.REAL.value if current_type == ImageType.ANIME.value else ImageType.ANIME.value
+
+            # Перемещаем файл в соответствующую папку
+            new_path = move_image_to_correct_folder(image_id, new_type)
+            if new_path is None:
+                logging.error(f"Failed to move file for image {image_id}")
+                return None
+
+            # Обновляем тип в БД
+            cur.execute("UPDATE pictures SET type = %s WHERE id = %s", (new_type, image_id))
+            conn.commit()
+            return new_type
+    except Exception as e:
+        logging.error(f"Error in change_image_type: {e}, image_id={image_id}")
+        conn.rollback()
+        return None
+    finally:
+        return_connection(conn)
+
+
 def get_good_images(type):
 	conn = get_connection()
 	if not conn:
