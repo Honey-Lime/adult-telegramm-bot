@@ -352,9 +352,15 @@ def init_db():
 					dislikes INTEGER DEFAULT 0,
 					total INTEGER DEFAULT 0,
 					value INTEGER DEFAULT 0,
+					need_moderate BOOLEAN DEFAULT FALSE,
 					created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 				);
 				CREATE INDEX IF NOT EXISTS idx_videos_post_id ON videos(post_id);
+			""")
+			# Добавление столбца need_moderate в videos, если его нет
+			cur.execute("""
+				ALTER TABLE videos
+				ADD COLUMN IF NOT EXISTS need_moderate BOOLEAN DEFAULT FALSE;
 			""")
 			# Добавление столбцов для видео в таблицу users, если их нет
 			cur.execute("""
@@ -1733,10 +1739,11 @@ def get_video_top25(user_id):
             cur.execute("SELECT watched_videos FROM users WHERE id = %s", (user_id,))
             row = cur.fetchone()
             watched = row[0] if row and row[0] else []
-            # Выбираем топ 25 видео по value, исключая просмотренные
+            # Выбираем топ 25 видео по value, исключая просмотренные и нуждающиеся в модерации
             cur.execute("""
                 SELECT * FROM videos
                 WHERE id != ALL(%s)
+                  AND (need_moderate IS NULL OR need_moderate = FALSE)
                 ORDER BY value DESC, random()
                 LIMIT 25
             """, (watched,))
@@ -1773,10 +1780,11 @@ def get_video_good(user_id):
             cur.execute("SELECT watched_videos FROM users WHERE id = %s", (user_id,))
             row = cur.fetchone()
             watched = row[0] if row and row[0] else []
-            # Выбираем видео, исключая топ25 (можно через OFFSET 25)
+            # Выбираем видео, исключая топ25 и нуждающиеся в модерации
             cur.execute("""
                 SELECT * FROM videos
                 WHERE id != ALL(%s)
+                  AND (need_moderate IS NULL OR need_moderate = FALSE)
                 ORDER BY value DESC, random()
                 OFFSET 25
                 LIMIT 50
@@ -1816,6 +1824,7 @@ def get_video_free(user_id):
             cur.execute("""
                 SELECT * FROM videos
                 WHERE id != ALL(%s)
+                  AND (need_moderate IS NULL OR need_moderate = FALSE)
                 ORDER BY total ASC, random()
                 LIMIT 50
             """, (watched,))
@@ -1834,6 +1843,31 @@ def get_video_free(user_id):
     except Exception as e:
         logging.error(f"Error in get_video_free for user {user_id}: {e}")
         return None, None
+    finally:
+        return_connection(conn)
+
+
+def set_video_need_moderate(video_id):
+    """
+    Устанавливает need_moderate = true для видео (например, если файл слишком большой).
+    Возвращает True при успехе.
+    """
+    conn = get_connection()
+    if not conn:
+        return False
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE videos
+                SET need_moderate = TRUE
+                WHERE id = %s
+            """, (video_id,))
+            conn.commit()
+            return True
+    except Exception as e:
+        logging.error(f"Error in set_video_need_moderate: {e}")
+        conn.rollback()
+        return False
     finally:
         return_connection(conn)
 

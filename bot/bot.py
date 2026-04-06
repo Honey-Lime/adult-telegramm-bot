@@ -1265,6 +1265,7 @@ class BotController:
 	async def send_video(self, chat_id: int, video_type: str) -> None:
 		"""
 		Отправляет видео пользователю в зависимости от типа.
+		Если видео превышает 50 МБ, помечает его как need_moderate и пробует следующее.
 		video_type: 'top25', 'good', 'free'
 		"""
 		# +++ Защита от одновременной отправки +++
@@ -1275,47 +1276,48 @@ class BotController:
 
 		try:
 			lang = self.get_user_lang(chat_id)
-			# Получаем видео в зависимости от типа
-			video_path = None
-			video = None
-			if video_type == 'top25':
-				video_path, video = database.get_video_top25(chat_id)
-			elif video_type == 'good':
-				video_path, video = database.get_video_good(chat_id)
-			elif video_type == 'free':
-				video_path, video = database.get_video_free(chat_id)
-
-			if not video:
-				await self.send_and_track(chat_id, text=get_text(lang, 'no_videos'))
-				return
-
-			if not os.path.isfile(video_path):
-				logging.error(f"Файл видео не найден: {video_path}")
-				await self.send_and_track(chat_id, text=get_text(lang, 'video_file_missing'))
-				return
-
-			# Проверяем размер файла (лимит Telegram Bot API — 50 МБ)
-			file_size = os.path.getsize(video_path)
 			max_size = 50 * 1024 * 1024  # 50 MB
-			if file_size > max_size:
-				logging.warning(f"Видео {video['id']} слишком большое: {file_size / (1024*1024):.1f} МБ > 50 МБ")
-				await self.send_and_track(chat_id, text=get_text(lang, 'video_send_error'), track=False)
-				return
+			max_attempts = 10  # Максимум попыток найти подходящее видео
 
-			# Обновляем состояние пользователя (просмотр видео)
-			database.user_watched_video(chat_id, video['id'])
+			for attempt in range(max_attempts):
+				# Получаем видео в зависимости от типа
+				video_path = None
+				video = None
+				if video_type == 'top25':
+					video_path, video = database.get_video_top25(chat_id)
+				elif video_type == 'good':
+					video_path, video = database.get_video_good(chat_id)
+				elif video_type == 'free':
+					video_path, video = database.get_video_free(chat_id)
 
-			# Сохраняем данные видео
-			self.last_video_path[chat_id] = video_path
-			self.last_video_data[chat_id] = video
-			user = database.get_user(chat_id)
-			coins = user.get('coins', 0) if user else 0
+				if not video:
+					await self.send_and_track(chat_id, text=get_text(lang, 'no_videos'))
+					return
 
-			caption_text = f"Видео | {coins}🪙"
-			keyboard = keyboards.get_video_keyboard(lang)
+				if not os.path.isfile(video_path):
+					logging.error(f"Файл видео не найден: {video_path}, пробуем следующее")
+					database.set_video_need_moderate(video['id'])
+					continue
 
-			video_file = FSInputFile(video_path)
-			try:
+				# Проверяем размер файла (лимит Telegram Bot API — 50 МБ)
+				file_size = os.path.getsize(video_path)
+				if file_size > max_size:
+					logging.warning(f"Видео {video['id']} слишком большое: {file_size / (1024*1024):.1f} МБ > 50 МБ, помечаем для модерации")
+					database.set_video_need_moderate(video['id'])
+					continue
+
+				# Видео подходит — отправляем
+				database.user_watched_video(chat_id, video['id'])
+
+				self.last_video_path[chat_id] = video_path
+				self.last_video_data[chat_id] = video
+				user = database.get_user(chat_id)
+				coins = user.get('coins', 0) if user else 0
+
+				caption_text = f"Видео | {coins}🪙"
+				keyboard = keyboards.get_video_keyboard(lang)
+
+				video_file = FSInputFile(video_path)
 				sent = await self.send_and_track(
 					chat_id,
 					video=video_file,
@@ -1323,16 +1325,11 @@ class BotController:
 					reply_markup=keyboard,
 				)
 				self.last_video_message_id[chat_id] = sent.message_id
-			except Exception as e:
-				logging.error(f"Ошибка отправки видео {video['id']} ({video_path}): {e}")
-				# Если видео слишком большое или файл повреждён, пробуем следующее
-				if 'EntityTooLarge' in str(type(e).__name__) or 'Too Large' in str(e):
-					logging.warning(f"Видео {video['id']} превышает лимит Telegram, пропускаем")
-				await self.send_and_track(
-					chat_id,
-					text=get_text(lang, 'video_send_error'),
-					track=False,
-				)
+				return
+
+			# Все попытки исчерпаны
+			logging.warning(f"Не удалось найти подходящее видео для пользователя {chat_id} после {max_attempts} попыток")
+			await self.send_and_track(chat_id, text=get_text(lang, 'no_videos'))
 
 		finally:
 			self.sending_video[chat_id] = False
