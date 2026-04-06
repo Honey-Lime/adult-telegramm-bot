@@ -107,6 +107,10 @@ class BotController:
 		self.last_video_message_id: Dict[int, int] = {}		  # chat_id -> message_id последнего видео
 		self.sending_video: Dict[int, bool] = {}				# chat_id -> флаг, выполняется ли сейчас отправка видео
 
+		# +++ Антиспам для оценок +++
+		self.last_image_rating_time: Dict[int, float] = {}		# chat_id -> время последней оценки картинки (лайк/дизлайк)
+		self.last_video_rating_time: Dict[int, float] = {}		# chat_id -> время последней оценки видео (лайк/дизлайк)
+
 		# Состояние ожидания пользовательского сообщения для рассылки
 		self.waiting_for_custom_message: Dict[int, bool] = {}  # chat_id -> bool (ожидает ли админ ввода сообщения)
 		self.pending_custom_message: Dict[int, str] = {}	   # chat_id -> текст сообщения для рассылки
@@ -789,6 +793,9 @@ class BotController:
 			return
 		self.user_processing[chat_id] = True
 
+		# Сохраняем ID callback для использования в хелперах
+		self._pending_callback_id = callback.id
+
 		try:
 			# Обновляем профиль пользователя
 			await self._update_user_profile_from_callback(callback)
@@ -810,8 +817,12 @@ class BotController:
 				if callback.data in ["video_top25", "video_good", "video_free"]:
 					await handle_video_selection(self, callback.data, chat_id, lang)
 				elif callback.data == "video_like":
+					if not self._check_video_rating_limit(chat_id, lang):
+						return
 					await handle_video_like(self, chat_id, message_id, lang)
 				elif callback.data == "video_dislike":
+					if not self._check_video_rating_limit(chat_id, lang):
+						return
 					await handle_video_dislike(self, chat_id, message_id, lang)
 				elif callback.data == "video_save":
 					await handle_video_save(self, chat_id, message_id, lang)
@@ -828,8 +839,12 @@ class BotController:
 
 			# === ДЕЙСТВИЯ С КОНТЕНТОМ ===
 			elif callback.data == "like":
+				if not self._check_image_rating_limit(chat_id, lang):
+					return
 				await handle_like(self, chat_id, message_id, lang)
 			elif callback.data == "dislike":
+				if not self._check_image_rating_limit(chat_id, lang):
+					return
 				await handle_dislike(self, chat_id, message_id, lang)
 			elif callback.data.startswith("save_"):
 				await handle_save_from_history(self, callback.data, chat_id, message_id, lang)
@@ -916,6 +931,40 @@ class BotController:
 
 
 	# ==================== ХЕЛПЕРЫ ДЛЯ CALLBACK ====================
+
+	async def _check_image_rating_limit(self, chat_id: int, lang: str) -> bool:
+		"""
+		Проверяет лимит оценок для картинок (минимум 3 секунды между оценками).
+		Возвращает True если можно продолжить, False если слишком часто.
+		"""
+		now = asyncio.get_event_loop().time()
+		last_time = self.last_image_rating_time.get(chat_id, 0)
+		if now - last_time < 3.0:
+			await self.bot.answer_callback_query(
+				callback_query_id=self._pending_callback_id,
+				text=get_text(lang, 'too_often_rating'),
+				show_alert=False,
+			)
+			return False
+		self.last_image_rating_time[chat_id] = now
+		return True
+
+	async def _check_video_rating_limit(self, chat_id: int, lang: str) -> bool:
+		"""
+		Проверяет лимит оценок для видео (минимум 10 секунд между оценками).
+		Возвращает True если можно продолжить, False если слишком часто.
+		"""
+		now = asyncio.get_event_loop().time()
+		last_time = self.last_video_rating_time.get(chat_id, 0)
+		if now - last_time < 10.0:
+			await self.bot.answer_callback_query(
+				callback_query_id=self._pending_callback_id,
+				text=get_text(lang, 'too_often_rating'),
+				show_alert=False,
+			)
+			return False
+		self.last_video_rating_time[chat_id] = now
+		return True
 
 	async def _handle_referral(self, chat_id: int) -> None:
 		"""Отправка реферальной ссылки пользователю"""
