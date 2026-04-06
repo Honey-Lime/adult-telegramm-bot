@@ -4,7 +4,7 @@
 """
 import logging
 from database import (
-    get_all_promo_links_registration_stats,
+    get_all_promo_links_click_stats,
     get_all_promo_links,
     get_promo_link_by_code,
     get_referral_stats_by_users,
@@ -17,19 +17,19 @@ async def handle_admin_referral_stats(controller, chat_id: int, message_id: int,
     """Показывает статистику по рекламным ссылкам и рефералам пользователей."""
     await controller.delete_current(chat_id, message_id)
 
-    # Статистика по рекламным ссылкам
-    promo_stats = get_all_promo_links_registration_stats()
+    # Статистика по рекламным ссылкам (клики)
+    promo_stats = get_all_promo_links_click_stats()
     promo_links = get_all_promo_links()
 
-    # Статистика по пользователям-реферерам
+    # Статистика по пользователям-реферерам (регистрации)
     user_referral_stats = get_referral_stats_by_users()
 
     lines = []
 
-    # --- Блок 1: Рекламные ссылки ---
+    # --- Блок 1: Рекламные ссылки (клики + регистрации) ---
     lines.append("📊 Статистика рекламных ссылок:\n")
     if not promo_stats:
-        lines.append("❌ Пока нет регистраций по рекламным ссылкам.\n")
+        lines.append("❌ Пока нет переходов по рекламным ссылкам.\n")
     else:
         name_map = {p['code']: p['name'] for p in promo_links}
         for i, stat in enumerate(promo_stats, 1):
@@ -37,7 +37,8 @@ async def handle_admin_referral_stats(controller, chat_id: int, message_id: int,
             name = name_map.get(code, code)
             lines.append(
                 f"{i}. 📛 {name} (`{code}`)\n"
-                f"   👥 Всего: {stat['total_users']} | 📅 Сегодня: {stat['today_users']}\n"
+                f"   🔗 Клики: {stat['total_clicks']} (📅 сегодня: {stat['today_clicks']})\n"
+                f"   👥 Регистрации: {stat['total_registrations']} (📅 сегодня: {stat['today_registrations']})\n"
             )
         lines.append("")
 

@@ -2580,9 +2580,11 @@ def get_promo_link_registration_stats(promo_code: str) -> dict:
         return_connection(conn)
 
 
-def get_all_promo_links_registration_stats() -> list:
+def get_all_promo_links_click_stats() -> list:
     """
-    Возвращает статистику по всем рекламным ссылкам (регистрации через promo_code).
+    Возвращает статистику кликов (переходов) и регистраций по всем рекламным ссылкам из админки.
+    Регистрация засчитывается, если пользователь перешёл по ссылке (есть в promo_link_stats)
+    и зарегистрировался с этим promo_code.
     """
     conn = get_connection()
     if not conn:
@@ -2591,27 +2593,48 @@ def get_all_promo_links_registration_stats() -> list:
         with conn.cursor() as cur:
             cur.execute("""
                 SELECT 
-                    promo_code,
-                    COUNT(*) as total_users,
-                    COUNT(*) FILTER (WHERE registered_at >= CURRENT_DATE) as today_users,
-                    MIN(registered_at) as first_registration
-                FROM users
-                WHERE promo_code IS NOT NULL
-                GROUP BY promo_code
-                ORDER BY total_users DESC
+                    p.code,
+                    COALESCE(clicks.total_clicks, 0) as total_clicks,
+                    COALESCE(clicks.today_clicks, 0) as today_clicks,
+                    clicks.first_click,
+                    COALESCE(regs.total_registrations, 0) as total_registrations,
+                    COALESCE(regs.today_registrations, 0) as today_registrations
+                FROM promo_links p
+                LEFT JOIN (
+                    SELECT 
+                        promo_link_id,
+                        COUNT(*) as total_clicks,
+                        COUNT(*) FILTER (WHERE clicked_at >= CURRENT_DATE) as today_clicks,
+                        MIN(clicked_at) as first_click
+                    FROM promo_link_stats
+                    GROUP BY promo_link_id
+                ) clicks ON clicks.promo_link_id = p.id
+                LEFT JOIN (
+                    SELECT 
+                        u.promo_code,
+                        COUNT(*) as total_registrations,
+                        COUNT(*) FILTER (WHERE u.registered_at >= CURRENT_DATE) as today_registrations
+                    FROM users u
+                    INNER JOIN promo_link_stats s ON u.id = s.user_id
+                    INNER JOIN promo_links pl ON pl.code = u.promo_code AND pl.id = s.promo_link_id
+                    GROUP BY u.promo_code
+                ) regs ON regs.promo_code = p.code
+                ORDER BY total_clicks DESC
             """)
             rows = cur.fetchall()
             result = []
             for row in rows:
                 result.append({
                     'promo_code': row[0],
-                    'total_users': row[1],
-                    'today_users': row[2],
-                    'first_registration': row[3]
+                    'total_clicks': row[1],
+                    'today_clicks': row[2],
+                    'first_click': row[3],
+                    'total_registrations': row[4],
+                    'today_registrations': row[5]
                 })
             return result
     except Exception as e:
-        logging.error(f"Error getting all promo links registration stats: {e}")
+        logging.error(f"Error getting all promo links click stats: {e}")
         return []
     finally:
         return_connection(conn)
