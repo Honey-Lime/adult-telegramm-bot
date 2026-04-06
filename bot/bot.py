@@ -126,6 +126,11 @@ class BotController:
 		
 		# Ожидающие платежи для Telegram Stars
 		self.pending_payments: Dict[int, dict] = {}  # user_id -> {pre_checkout_query_id, timestamp}
+		
+		# Состояние для отправки сообщений пользователям из админки
+		self.admin_waiting_for_user_id: Dict[int, bool] = {}  # admin_id -> bool
+		self.admin_waiting_for_message: Dict[int, bool] = {}  # admin_id -> bool
+		self.admin_target_user_id: Dict[int, int] = {}  # admin_id -> target user_id
 
 		self._register_handlers()
 		# История сообщений загружается лениво при первом использовании
@@ -578,6 +583,88 @@ class BotController:
 			except:
 				pass
 
+		# Обработка ID пользователя для отправки сообщения (админка)
+		if chat_id in self.admin_waiting_for_user_id and self.admin_waiting_for_user_id[chat_id]:
+			if not message.text or not message.text.isdigit():
+				await message.answer(get_text(lang, 'admin_enter_user_id'))
+				return
+			
+			target_user_id = int(message.text)
+			user = database.get_user(target_user_id)
+			
+			if user is None:
+				await self.send_and_track(
+					chat_id,
+					text=get_text(lang, 'admin_user_not_found'),
+					track=False
+				)
+				return
+			
+			# Пользователь найден — переходим к ожиданию сообщения
+			self.admin_waiting_for_user_id[chat_id] = False
+			self.admin_waiting_for_message[chat_id] = True
+			self.admin_target_user_id[chat_id] = target_user_id
+			
+			keyboard = keyboards.get_cancel_keyboard(lang)
+			await self.send_and_track(
+				chat_id,
+				text=get_text(lang, 'admin_enter_message'),
+				reply_markup=keyboard,
+				track=False
+			)
+			
+			# Удаляем сообщение админа
+			try:
+				await message.delete()
+			except:
+				pass
+
+		# Обработка сообщения для отправки пользователю (админка)
+		if chat_id in self.admin_waiting_for_message and self.admin_waiting_for_message[chat_id]:
+			if not message.text:
+				await message.answer(get_text(lang, 'admin_enter_message'))
+				return
+			
+			target_user_id = self.admin_target_user_id.get(chat_id)
+			
+			if target_user_id:
+				try:
+					await self.bot.send_message(
+						target_user_id,
+						message.text
+					)
+					await self.send_and_track(
+						chat_id,
+						text=get_text(lang, 'admin_message_sent', user_id=target_user_id),
+						track=False
+					)
+				except Exception as e:
+					logging.error(f"Не удалось отправить сообщение пользователю {target_user_id}: {e}")
+					await self.send_and_track(
+						chat_id,
+						text=get_text(lang, 'admin_message_send_error', user_id=target_user_id),
+						track=False
+					)
+			
+			# Сбрасываем состояние
+			self.admin_waiting_for_message[chat_id] = False
+			self.admin_target_user_id.pop(chat_id, None)
+			
+			# Возвращаем в меню сообщений
+			keyboard = keyboards.get_admin_messages_menu_keyboard(lang)
+			await self.send_and_track(
+				chat_id,
+				text=get_text(lang, 'admin_messages_menu'),
+				reply_markup=keyboard,
+				track=False
+			)
+			
+			# Удаляем сообщение админа
+			try:
+				await message.delete()
+			except:
+				pass
+
 	async def handle_pre_checkout_query(self, pre_checkout_query: PreCheckoutQuery) -> None:
 		"""Обработчик pre_checkout_query для подтверждения платежа."""
 		try:
@@ -910,6 +997,12 @@ class BotController:
 				await self._handle_admin_cleanup_json(chat_id, message_id, lang)
 			elif callback.data == "admin_logs":
 				await self._handle_admin_logs(chat_id, message_id, lang)
+			elif callback.data == "admin_messages":
+				await self._handle_admin_messages_menu(chat_id, message_id, lang)
+			elif callback.data == "admin_write_user":
+				await self._handle_admin_write_user(chat_id, message_id, lang)
+			elif callback.data == "admin_cancel":
+				await self._handle_admin_cancel(chat_id, message_id, lang)
 			elif callback.data == "admin_promo_links":
 				await handle_admin_promo_links(self, chat_id, message_id, lang)
 			elif callback.data == "admin_referral_stats":
@@ -1196,6 +1289,54 @@ class BotController:
 		keyboard = keyboards.get_admin_panel_keyboard(lang)
 		await self.send_and_track(chat_id, text="Админ-панель. Выберите действие:", reply_markup=keyboard, track=False)
 
+	async def _handle_admin_messages_menu(self, chat_id: int, message_id: int, lang: str) -> None:
+		"""Меню сообщений в админ-панели."""
+		if chat_id not in self.admin_ids:
+			await self.send_and_track(chat_id, text="⛔ Доступ запрещён", track=False)
+			return
+		await self.delete_current(chat_id, message_id)
+		keyboard = keyboards.get_admin_messages_menu_keyboard(lang)
+		await self.send_and_track(
+			chat_id,
+			text=get_text(lang, 'admin_messages_menu'),
+			reply_markup=keyboard,
+			track=False
+		)
+
+	async def _handle_admin_write_user(self, chat_id: int, message_id: int, lang: str) -> None:
+		"""Начало процесса написания сообщения пользователю."""
+		if chat_id not in self.admin_ids:
+			await self.send_and_track(chat_id, text="⛔ Доступ запрещён", track=False)
+			return
+		await self.delete_current(chat_id, message_id)
+		self.admin_waiting_for_user_id[chat_id] = True
+		self.admin_waiting_for_message[chat_id] = False
+		keyboard = keyboards.get_cancel_keyboard(lang)
+		await self.send_and_track(
+			chat_id,
+			text=get_text(lang, 'admin_enter_user_id'),
+			reply_markup=keyboard,
+			track=False
+		)
+
+	async def _handle_admin_cancel(self, chat_id: int, message_id: int, lang: str) -> None:
+		"""Отмена текущего действия админа."""
+		if chat_id not in self.admin_ids:
+			await self.send_and_track(chat_id, text="⛔ Доступ запрещён", track=False)
+			return
+		self.admin_waiting_for_user_id[chat_id] = False
+		self.admin_waiting_for_message[chat_id] = False
+		self.admin_target_user_id.pop(chat_id, None)
+		await self.delete_current(chat_id, message_id)
+		await self.send_and_track(
+			chat_id,
+			text=get_text(lang, 'admin_cancelled'),
+			track=False
+		)
+		# Возвращаем в админ-меню
+		keyboard = keyboards.get_admin_panel_keyboard(lang)
+		await self.send_and_track(chat_id, text="Админ-панель. Выберите действие:", reply_markup=keyboard, track=False)
+
 	# ==================== МЕТОДЫ ОТПРАВКИ СООБЩЕНИЙ ====================
 
 	def get_user_lang(self, chat_id: int) -> str:
@@ -1219,10 +1360,10 @@ class BotController:
 		try:
 			lang = self.get_user_lang(chat_id)
 			logging.info(f"[SEND_PICTURE] chat_id={chat_id}, before: last_image_message_id={self.last_image_message_id.get(chat_id)}")
-			# +++ Rate limit: не чаще 1 раза в секунду +++
+			# +++ Rate limit: не чаще 1 раза в 1.5 секунды +++
 			now = asyncio.get_event_loop().time()
 			last_time = self.last_picture_time.get(chat_id, 0)
-			if now - last_time < 1.0:
+			if now - last_time < 1.5:
 				await self.send_and_track(
 					chat_id,
 					text=get_text(lang, 'too_often'),

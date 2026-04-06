@@ -99,6 +99,16 @@ LOCALES = {
         'admin_clear_folder': "🗑 Очистить папку загрузки",
         'admin_cleanup_json': "🧹 Чистка по json",
         'admin_logs': "📋 Логи",
+        'admin_messages': "💬 Сообщения",
+        'admin_messages_menu': "💬 Сообщения. Выберите действие:",
+        'admin_write_user': "✉️ Написать пользователю",
+        'admin_enter_user_id': "Пришлите ID пользователя:",
+        'admin_user_not_found': "❌ Пользователь с таким ID не найден.",
+        'admin_enter_message': "Напишите ваше сообщение:",
+        'admin_message_sent': "✅ Сообщение отправлено пользователю {user_id}.",
+        'admin_message_send_error': "❌ Не удалось отправить сообщение пользователю {user_id}.",
+        'admin_cancelled': "Отменено.",
+        'btn_cancel': "❌ Отмена",
         
         # Пользователи
         'users_stats_text': "📊 Статистика пользователей (ID | имя | просмотры):",
@@ -281,6 +291,16 @@ LOCALES = {
         'admin_clear_folder': "🗑 Clear import folder",
         'admin_cleanup_json': "🧹 Cleanup by json",
         'admin_logs': "📋 Logs",
+        'admin_messages': "💬 Messages",
+        'admin_messages_menu': "💬 Messages. Select action:",
+        'admin_write_user': "✉️ Write to user",
+        'admin_enter_user_id': "Send the user ID:",
+        'admin_user_not_found': "❌ User with this ID not found.",
+        'admin_enter_message': "Write your message:",
+        'admin_message_sent': "✅ Message sent to user {user_id}.",
+        'admin_message_send_error': "❌ Failed to send message to user {user_id}.",
+        'admin_cancelled': "Cancelled.",
+        'btn_cancel': "❌ Cancel",
         
         # Пользователи
         'users_stats_text': "📊 User statistics (ID | name | views):",

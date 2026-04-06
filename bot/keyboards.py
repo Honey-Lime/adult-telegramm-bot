@@ -67,6 +67,7 @@ def get_admin_panel_keyboard(lang: str = 'ru') -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text=get_text(lang, 'admin_daily_stats'), callback_data="admin_daily_stats")],
         [InlineKeyboardButton(text=get_text(lang, 'admin_promo_links'), callback_data="admin_promo_links")],
         [InlineKeyboardButton(text=get_text(lang, 'admin_referral_stats'), callback_data="admin_referral_stats")],
+        [InlineKeyboardButton(text=get_text(lang, 'admin_messages'), callback_data="admin_messages")],
         [InlineKeyboardButton(text=get_text(lang, 'admin_load_images'), callback_data="admin_load_images")],
         [InlineKeyboardButton(text=get_text(lang, 'admin_clear_folder'), callback_data="admin_clear_import_folder")],
         [InlineKeyboardButton(text=get_text(lang, 'admin_cleanup_json'), callback_data="admin_cleanup_json")],
@@ -226,4 +227,23 @@ def get_language_keyboard(lang: str = 'ru') -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text=get_text(lang, 'btn_lang_ru'), callback_data="lang_ru"),
          InlineKeyboardButton(text=get_text(lang, 'btn_lang_en'), callback_data="lang_en")],
         [InlineKeyboardButton(text=get_text(lang, 'btn_back'), callback_data="menu")]
+    ])
+
+
+def get_admin_messages_menu_keyboard(lang: str = 'ru') -> InlineKeyboardMarkup:
+    """
+    Клавиатура меню сообщений в админ-панели.
+    """
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=get_text(lang, 'admin_write_user'), callback_data="admin_write_user")],
+        [InlineKeyboardButton(text=get_text(lang, 'btn_back'), callback_data="admin_menu")]
+    ])
+
+
+def get_cancel_keyboard(lang: str = 'ru') -> InlineKeyboardMarkup:
+    """
+    Клавиатура с кнопкой отмены.
+    """
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=get_text(lang, 'btn_cancel'), callback_data="admin_cancel")]
     ])
