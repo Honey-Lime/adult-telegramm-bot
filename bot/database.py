@@ -2983,6 +2983,119 @@ def get_daily_stats(days: int = 7) -> list:
         return_connection(conn)
 
 
+def get_archive_stats() -> dict:
+    """
+    Возвращает статистику архива контента:
+    - Общее количество картинок (по типам) и видео
+    - Сколько не проходят фильтр: total < 10 OR (total > 0 AND likes::numeric / total > 0.2)
+    - Статистика по уровням total (>=1, >=2, >=4, >=10, >=20)
+    """
+    conn = get_connection()
+    if not conn:
+        return {
+            'images': {'total': 0, 'real': 0, 'anime': 0, 'need_more_ratings': 0,
+                       'total_gte_1': 0, 'total_gte_2': 0, 'total_gte_4': 0,
+                       'total_gte_10': 0, 'total_gte_20': 0},
+            'videos': {'total': 0, 'need_more_ratings': 0,
+                       'total_gte_1': 0, 'total_gte_2': 0, 'total_gte_4': 0,
+                       'total_gte_10': 0, 'total_gte_20': 0}
+        }
+    try:
+        with conn.cursor() as cur:
+            # Статистика по картинкам
+            cur.execute("SELECT COUNT(*) FROM pictures")
+            images_total = cur.fetchone()[0]
+
+            cur.execute("SELECT COUNT(*) FROM pictures WHERE type = %s", (ImageType.REAL.value,))
+            images_real = cur.fetchone()[0]
+
+            cur.execute("SELECT COUNT(*) FROM pictures WHERE type = %s", (ImageType.ANIME.value,))
+            images_anime = cur.fetchone()[0]
+
+            cur.execute("""
+                SELECT COUNT(*) FROM pictures
+                WHERE total < 10 OR (total > 0 AND likes::numeric / total > 0.2)
+            """)
+            images_need_more = cur.fetchone()[0]
+
+            # Уровни total для картинок
+            cur.execute("SELECT COUNT(*) FROM pictures WHERE total >= 1")
+            images_gte_1 = cur.fetchone()[0]
+
+            cur.execute("SELECT COUNT(*) FROM pictures WHERE total >= 2")
+            images_gte_2 = cur.fetchone()[0]
+
+            cur.execute("SELECT COUNT(*) FROM pictures WHERE total >= 4")
+            images_gte_4 = cur.fetchone()[0]
+
+            cur.execute("SELECT COUNT(*) FROM pictures WHERE total >= 10")
+            images_gte_10 = cur.fetchone()[0]
+
+            cur.execute("SELECT COUNT(*) FROM pictures WHERE total >= 20")
+            images_gte_20 = cur.fetchone()[0]
+
+            # Статистика по видео
+            cur.execute("SELECT COUNT(*) FROM videos")
+            videos_total = cur.fetchone()[0]
+
+            cur.execute("""
+                SELECT COUNT(*) FROM videos
+                WHERE total < 10 OR (total > 0 AND likes::numeric / total > 0.2)
+            """)
+            videos_need_more = cur.fetchone()[0]
+
+            # Уровни total для видео
+            cur.execute("SELECT COUNT(*) FROM videos WHERE total >= 1")
+            videos_gte_1 = cur.fetchone()[0]
+
+            cur.execute("SELECT COUNT(*) FROM videos WHERE total >= 2")
+            videos_gte_2 = cur.fetchone()[0]
+
+            cur.execute("SELECT COUNT(*) FROM videos WHERE total >= 4")
+            videos_gte_4 = cur.fetchone()[0]
+
+            cur.execute("SELECT COUNT(*) FROM videos WHERE total >= 10")
+            videos_gte_10 = cur.fetchone()[0]
+
+            cur.execute("SELECT COUNT(*) FROM videos WHERE total >= 20")
+            videos_gte_20 = cur.fetchone()[0]
+
+            return {
+                'images': {
+                    'total': images_total,
+                    'real': images_real,
+                    'anime': images_anime,
+                    'need_more_ratings': images_need_more,
+                    'total_gte_1': images_gte_1,
+                    'total_gte_2': images_gte_2,
+                    'total_gte_4': images_gte_4,
+                    'total_gte_10': images_gte_10,
+                    'total_gte_20': images_gte_20,
+                },
+                'videos': {
+                    'total': videos_total,
+                    'need_more_ratings': videos_need_more,
+                    'total_gte_1': videos_gte_1,
+                    'total_gte_2': videos_gte_2,
+                    'total_gte_4': videos_gte_4,
+                    'total_gte_10': videos_gte_10,
+                    'total_gte_20': videos_gte_20,
+                }
+            }
+    except Exception as e:
+        logging.error(f"Error in get_archive_stats: {e}")
+        return {
+            'images': {'total': 0, 'real': 0, 'anime': 0, 'need_more_ratings': 0,
+                       'total_gte_1': 0, 'total_gte_2': 0, 'total_gte_4': 0,
+                       'total_gte_10': 0, 'total_gte_20': 0},
+            'videos': {'total': 0, 'need_more_ratings': 0,
+                       'total_gte_1': 0, 'total_gte_2': 0, 'total_gte_4': 0,
+                       'total_gte_10': 0, 'total_gte_20': 0}
+        }
+    finally:
+        return_connection(conn)
+
+
 def get_all_daily_stats_csv() -> str:
     """
     Возвращает статистику по всем дням в формате CSV.

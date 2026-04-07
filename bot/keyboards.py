@@ -68,6 +68,7 @@ def get_admin_panel_keyboard(lang: str = 'ru') -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text=get_text(lang, 'admin_promo_links'), callback_data="admin_promo_links")],
         [InlineKeyboardButton(text=get_text(lang, 'admin_referral_stats'), callback_data="admin_referral_stats")],
         [InlineKeyboardButton(text=get_text(lang, 'admin_messages'), callback_data="admin_messages")],
+        [InlineKeyboardButton(text=get_text(lang, 'admin_archive'), callback_data="admin_archive")],
         [InlineKeyboardButton(text=get_text(lang, 'admin_load_images'), callback_data="admin_load_images")],
         [InlineKeyboardButton(text=get_text(lang, 'admin_clear_folder'), callback_data="admin_clear_import_folder")],
         [InlineKeyboardButton(text=get_text(lang, 'admin_cleanup_json'), callback_data="admin_cleanup_json")],
