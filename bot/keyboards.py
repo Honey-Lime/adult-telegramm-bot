@@ -63,7 +63,6 @@ def get_admin_panel_keyboard(lang: str = 'ru') -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=get_text(lang, 'admin_users'), callback_data="admin_users")],
         [InlineKeyboardButton(text=get_text(lang, 'admin_moderation'), callback_data="admin_moderation")],
-        [InlineKeyboardButton(text=get_text(lang, 'admin_notifications'), callback_data="admin_notifications")],
         [InlineKeyboardButton(text=get_text(lang, 'admin_daily_stats'), callback_data="admin_daily_stats")],
         [InlineKeyboardButton(text=get_text(lang, 'admin_promo_links'), callback_data="admin_promo_links")],
         [InlineKeyboardButton(text=get_text(lang, 'admin_referral_stats'), callback_data="admin_referral_stats")],
@@ -238,6 +237,7 @@ def get_admin_messages_menu_keyboard(lang: str = 'ru') -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=get_text(lang, 'admin_write_user'), callback_data="admin_write_user")],
         [InlineKeyboardButton(text=get_text(lang, 'admin_feedback_messages'), callback_data="admin_feedback_messages")],
+        [InlineKeyboardButton(text=get_text(lang, 'admin_notifications'), callback_data="admin_notifications")],
         [InlineKeyboardButton(text=get_text(lang, 'btn_back'), callback_data="admin_menu")]
     ])
 

@@ -5,7 +5,7 @@
 import asyncio
 import logging
 import database
-from keyboards import get_notifications_menu_keyboard, get_notification_confirm_keyboard, get_admin_panel_keyboard
+from keyboards import get_notifications_menu_keyboard, get_notification_confirm_keyboard, get_admin_messages_menu_keyboard
 from locales import get_text
 
 
@@ -114,10 +114,10 @@ async def handle_notification_confirm(controller, callback_data: str, chat_id: i
     
     if not user_ids:
         await controller.send_and_track(chat_id, text="❌ Нет пользователей для рассылки.", track=False)
-        keyboard = get_admin_panel_keyboard(lang)
+        keyboard = get_admin_messages_menu_keyboard(lang)
         await controller.send_and_track(
             chat_id,
-            text="Админ-панель. Выберите действие:",
+            text=get_text(lang, 'admin_messages_menu'),
             reply_markup=keyboard,
             track=False
         )
@@ -134,10 +134,10 @@ async def handle_notification_confirm(controller, callback_data: str, chat_id: i
                 text="❌ Не найден текст сообщения. Начните заново.",
                 track=False
             )
-            keyboard = get_admin_panel_keyboard(lang)
+            keyboard = get_admin_messages_menu_keyboard(lang)
             await controller.send_and_track(
                 chat_id,
-                text="Админ-панель. Выберите действие:",
+                text=get_text(lang, 'admin_messages_menu'),
                 reply_markup=keyboard,
                 track=False
             )
@@ -163,10 +163,10 @@ async def handle_notification_confirm(controller, callback_data: str, chat_id: i
     if "custom" in callback_data:
         controller.pending_custom_message.pop(chat_id, None)
     
-    keyboard = get_admin_panel_keyboard(lang)
+    keyboard = get_admin_messages_menu_keyboard(lang)
     await controller.send_and_track(
         chat_id,
-        text="Админ-панель. Выберите действие:",
+        text=get_text(lang, 'admin_messages_menu'),
         reply_markup=keyboard,
         track=False
     )
@@ -188,10 +188,10 @@ async def handle_notification_cancel(controller, chat_id: int, message_id: int, 
     
     await controller.delete_current(chat_id, message_id)
     
-    keyboard = get_admin_panel_keyboard(lang)
+    keyboard = get_admin_messages_menu_keyboard(lang)
     await controller.send_and_track(
         chat_id,
-        text="Админ-панель. Выберите действие:",
+        text=get_text(lang, 'admin_messages_menu'),
         reply_markup=keyboard,
         track=False
     )
