@@ -1495,10 +1495,10 @@ class BotController:
 		Если видео превышает 50 МБ, помечает его как need_moderate и пробует следующее.
 		video_type: 'top25', 'good', 'free'
 		"""
-		# +++ Антиспам: не чаще 1 раза в 10 секунд +++
+		# +++ Антиспам: не чаще 1 раза в 10 секунд (только для бесплатных видео) +++
 		now = asyncio.get_event_loop().time()
 		last_time = self.last_video_send_time.get(chat_id, 0)
-		if last_time > 0 and (now - last_time) < 10.0:
+		if video_type == 'free' and last_time > 0 and (now - last_time) < 10.0:
 			lang = self.get_user_lang(chat_id)
 			await self.send_and_track(chat_id, text=get_text(lang, 'too_often_video'), track=False)
 			return
